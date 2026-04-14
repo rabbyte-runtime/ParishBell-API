@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="ParishBell.API/ParishBell.API.csproj" />
+  <Project Path="ParishBell.Application/ParishBell.Application.csproj" />
+  <Project Path="ParishBell.Core/ParishBell.Core.csproj" />
+  <Project Path="ParishBell.Infrastructure/ParishBell.Infrastructure.csproj" />
+</Solution>

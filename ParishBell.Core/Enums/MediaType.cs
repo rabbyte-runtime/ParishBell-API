@@ -2,6 +2,6 @@ namespace ParishBell.Core.Enums;
 
 public enum MediaType
 {
-    Audio,
-    Video
+    Audio = 1,
+    Video = 2
 }

@@ -2,6 +2,6 @@ namespace ParishBell.Core.Enums;
 
 public enum DevicePlatform
 {
-    iOS,
-    Android
+    iOS = 1,
+    Android = 2
 }

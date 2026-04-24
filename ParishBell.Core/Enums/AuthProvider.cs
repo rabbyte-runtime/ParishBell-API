@@ -2,7 +2,7 @@ namespace ParishBell.Core.Enums;
 
 public enum AuthProvider
 {
-    Email,
-    Google,
-    Apple
+    Email = 1,
+    Google = 2,
+    Apple = 3
 }

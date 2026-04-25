@@ -50,6 +50,8 @@ public partial class ParishBellDbContext : DbContext
 
     public virtual DbSet<OnboardingRequest> OnboardingRequests { get; set; }
 
+    public virtual DbSet<RefreshToken> RefreshTokens { get; set; }
+
     public virtual DbSet<UserDevice> UserDevices { get; set; }
 
     public virtual DbSet<UserFollowedLocation> UserFollowedLocations { get; set; }
@@ -393,6 +395,16 @@ public partial class ParishBellDbContext : DbContext
             entity.HasOne(d => d.ReviewedByNavigation).WithMany(p => p.OnboardingRequests)
                 .OnDelete(DeleteBehavior.SetNull)
                 .HasConstraintName("fk_or_reviewed_by");
+        });
+
+        modelBuilder.Entity<RefreshToken>(entity =>
+        {
+            entity.HasKey(e => e.RefreshTokenId).HasName("pk_refresh_tokens");
+
+            entity.Property(e => e.RefreshTokenId).HasDefaultValueSql("gen_random_uuid()");
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("now()");
+
+            entity.HasOne(d => d.User).WithMany(p => p.RefreshTokens).HasConstraintName("fk_rt_user");
         });
 
         modelBuilder.Entity<UserDevice>(entity =>

@@ -67,6 +67,9 @@ public partial class AppUser
     public virtual Language PreferredLanguageNavigation { get; set; } = null!;
 
     [InverseProperty("User")]
+    public virtual ICollection<RefreshToken> RefreshTokens { get; set; } = new List<RefreshToken>();
+
+    [InverseProperty("User")]
     public virtual ICollection<UserDevice> UserDevices { get; set; } = new List<UserDevice>();
 
     [InverseProperty("User")]

@@ -1,6 +1,8 @@
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
+using ParishBell.Core.Enums;
 using ParishBell.Core.Interfaces;
+using static ParishBell.Core.Interfaces.IMessageRepository;
 
 namespace ParishBell.Infrastructure.Caching;
 
@@ -13,7 +15,7 @@ public class MessageCache(IMessageRepository repo, IMemoryCache cache, ILogger<M
     private const string CacheKey = "parishbell_messages";
     private const string FallbackLanguage = "en";
 
-    public string Get(string messageCode, string languageCode = FallbackLanguage)
+    public string GetText(string messageCode, string languageCode = FallbackLanguage)
     {
         if (!_cache.TryGetValue(CacheKey, out Dictionary<string, Dictionary<string, string>>? messages) || messages is null)
         {
@@ -43,6 +45,17 @@ public class MessageCache(IMessageRepository repo, IMemoryCache cache, ILogger<M
         return messageCode;
     }
 
+    public MessageType GetType(string messageCode)
+    {
+        if (!TryGetCachedMessages(out var messages) || !messages!.TryGetValue(messageCode, out var cached))
+        {
+            // IMPORTANT: Default to Error if the code is unknown
+            return MessageType.Error;
+        }
+
+        return cached.Type;
+    }
+
     public async Task ReloadAsync(CancellationToken ct = default)
     {
         _logger.LogInformation("Reloading message cache from database...");
@@ -63,5 +76,16 @@ public class MessageCache(IMessageRepository repo, IMemoryCache cache, ILogger<M
             _logger.LogError(ex, "Failed to reload message cache from database.");
             throw;
         }
+    }
+
+    // NOTE: Private helper method to try and get the messages from memory cache
+    private bool TryGetCachedMessages(out Dictionary<string, CachedMessage>? messages)
+    {
+        if (_cache.TryGetValue(CacheKey, out messages) && messages is not null)
+            return true;
+
+        _logger.LogWarning("Message cache miss. Cache may not be loaded yet.");
+        messages = null;
+        return false;
     }
 }

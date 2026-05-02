@@ -1,12 +1,27 @@
+using ParishBell.Core.Interfaces;
+using ParishBell.Infrastructure.BackgroundJobs;
+using ParishBell.Infrastructure.Caching;
+using ParishBell.Infrastructure.Repositories;
+
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
-// Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
+// NOTE: Add OpenApi support
 builder.Services.AddOpenApi();
+
+// NOTE: Add Memory Cache
+builder.Services.AddMemoryCache();
+
+// NOTE: Inject IMessageRepository and IMessageCache
+builder.Services.AddScoped<IMessageRepository, MessageRepository>();
+builder.Services.AddScoped<IMessageCache, MessageCache>();
+
+// NOTE: Add hosted services
+builder.Services.AddHostedService<MessageCacheStartupService>();
+builder.Services.AddHostedService<MessageCacheRefreshJob>();
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
+// NOTE: Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
     builder.Configuration.AddUserSecrets<Program>();
@@ -14,29 +29,4 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
-
-var summaries = new[]
-{
-    "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"
-};
-
-app.MapGet("/weatherforecast", () =>
-{
-    var forecast = Enumerable.Range(1, 5).Select(index =>
-        new WeatherForecast
-        (
-            DateOnly.FromDateTime(DateTime.Now.AddDays(index)),
-            Random.Shared.Next(-20, 55),
-            summaries[Random.Shared.Next(summaries.Length)]
-        ))
-        .ToArray();
-    return forecast;
-})
-.WithName("GetWeatherForecast");
-
 app.Run();
-
-record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)
-{
-    public int TemperatureF => 32 + (int)(TemperatureC / 0.5556);
-}

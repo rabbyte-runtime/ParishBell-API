@@ -58,6 +58,10 @@ public partial class ParishBellDbContext : DbContext
 
     public virtual DbSet<UserMassReminder> UserMassReminders { get; set; }
 
+    public virtual DbSet<Message> Messages { get; set; }
+
+    public virtual DbSet<MessageTranslation> MessageTranslations { get; set; }
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.HasPostgresExtension("pgcrypto");
@@ -452,6 +456,20 @@ public partial class ParishBellDbContext : DbContext
             entity.HasOne(d => d.Schedule).WithMany(p => p.UserMassReminders).HasConstraintName("fk_umr_schedule");
 
             entity.HasOne(d => d.User).WithMany(p => p.UserMassReminders).HasConstraintName("fk_umr_user");
+        });
+
+        modelBuilder.Entity<Message>(entity =>
+        {
+            entity.HasKey(e => e.MessageId).HasName("messages_pkey");
+            entity.Property(e => e.MessageId).HasDefaultValueSql("gen_random_uuid()");
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("now()");
+        });
+
+        modelBuilder.Entity<MessageTranslation>(entity =>
+        {
+            entity.HasKey(e => e.TranslationId).HasName("message_translations_pkey");
+            entity.Property(e => e.TranslationId).HasDefaultValueSql("gen_random_uuid()");
+            entity.HasOne(d => d.MessageNavigation).WithMany(p => p.MessageTranslations).HasConstraintName("fk_message_translations_message");
         });
 
         OnModelCreatingPartial(modelBuilder);

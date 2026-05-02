@@ -1,7 +1,9 @@
 using System.Text.RegularExpressions;
+using ParishBell.Core.Constants;
 using ParishBell.Core.DTOs.Auth;
 using ParishBell.Core.Entities;
 using ParishBell.Core.Enums;
+using ParishBell.Core.Exceptions;
 using ParishBell.Core.Interfaces;
 
 namespace ParishBell.Application.Services;
@@ -21,15 +23,15 @@ public partial class AuthService(IAuthRepository authRepository, IPasswordHasher
     {
         // NOTE: Check if passwords match
         if (request.Password != request.ConfirmPassword)
-            throw new InvalidOperationException("Passwords do not match.");
+            throw new BadRequestException(MessageCodes.AuthPasswordsDoNotMatch);
 
         // IMPORTANT: Password policy - min 8 chars, 1 uppercase, 1 digit
         if (!PasswordPolicyRegex().IsMatch(request.Password))
-            throw new InvalidOperationException("Password must be at least 8 characters and contain at least one uppercase letter and one number.");
+            throw new BadRequestException(MessageCodes.AuthWeakPassword);
 
         // NOTE: Check email uniqueness
         if (await _authRepository.EmailExistsAsync(request.Email, ct))
-            throw new InvalidOperationException("An account with this email already exists.");
+            throw new ConflictException(MessageCodes.AuthEmailAlreadyExists);
 
         // NOTE: Add new app user
         var user = new AppUser

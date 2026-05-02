@@ -6,14 +6,12 @@ public class ParishBellException : Exception
 {
     public int StatusCode { get; }
     public string MessageCode { get; }
-    public MessageType MessageType { get; }
 
     // NOTE: The actual message is still passed to the base Exception for now
-    protected ParishBellException(int statusCode, string messageCode, MessageType messageType, string message)
-        : base(message)
+    protected ParishBellException(int statusCode, string messageCode)
+        : base(messageCode)
     {
         StatusCode = statusCode;
         MessageCode = messageCode;
-        MessageType = messageType;
     }
 }

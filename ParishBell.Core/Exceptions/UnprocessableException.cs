@@ -2,4 +2,4 @@ using ParishBell.Core.Enums;
 
 namespace ParishBell.Core.Exceptions;
 
-public class UnprocessableException(string messageCode, MessageType messageType, string message) : ParishBellException(422, messageCode, messageType, message) { }
+public class UnprocessableException(string messageCode) : ParishBellException(422, messageCode);

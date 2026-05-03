@@ -2,7 +2,9 @@ using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using ParishBell.API.Middleware;
 using ParishBell.Application.Services;
+using ParishBell.Core.Configuration;
 using ParishBell.Core.Interfaces;
 using ParishBell.Infrastructure.BackgroundJobs;
 using ParishBell.Infrastructure.Caching;
@@ -36,7 +38,12 @@ builder.Services.AddHostedService<MessageCacheRefreshJob>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IAuthRepository, AuthRepository>();
 builder.Services.AddScoped<IPasswordHasher, PasswordHasher>();
+builder.Services.Configure<JwtSettings>(builder.Configuration.GetSection("JwtSettings"));
 builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
+
+// NOTE: Load user secrets
+if (builder.Environment.IsDevelopment())
+    builder.Configuration.AddUserSecrets<Program>();
 
 // NOTE: Rate limiting - 10 requests per IP address per minute on auth endpoints
 builder.Services.AddRateLimiter(options =>
@@ -103,12 +110,12 @@ builder.Services.Configure<ApiBehaviorOptions>(options =>
 
 var app = builder.Build();
 
-// NOTE: Configure the HTTP request pipeline.
+// NOTE: Global exception handler
+app.UseMiddleware<GlobalExceptionMiddleware>();
+
+// NOTE: OpenApi on development server
 if (app.Environment.IsDevelopment())
-{
-    builder.Configuration.AddUserSecrets<Program>();
     app.MapOpenApi();
-}
 
 // NOTE: Redirect HTTP requests to HTTPS
 app.UseHttpsRedirection();

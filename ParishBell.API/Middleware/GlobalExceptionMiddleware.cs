@@ -1,5 +1,6 @@
 using System.Text.Json;
 using ParishBell.Core.Constants;
+using ParishBell.Core.DTOs.Common;
 using ParishBell.Core.Exceptions;
 using ParishBell.Core.Interfaces;
 
@@ -35,23 +36,23 @@ public class GlobalExceptionMiddleware(RequestDelegate next, ILogger<GlobalExcep
 
     private static async Task WriteResponseAsync(HttpContext context, int statusCode, string messageCode, IMessageCache messages)
     {
-        var languageCode = GetLanguageCode(context);
-        var messageText = messages.GetText(messageCode, languageCode);
-        var messageType = messages.GetType(messageCode);
+        var lang = context.Request.Headers.AcceptLanguage.FirstOrDefault()?.Split(',')[0].Trim().ToLowerInvariant();
+        lang = lang is "en" or "si" or "ta" ? lang : "en";
+
+        var response = new ParishBellApiResponse<object>
+        {
+            Status = statusCode,
+            MessageCode = messageCode,
+            MessageType = messages.GetType(messageCode).ToString(),
+            Message = messages.GetText(messageCode, lang),
+            TraceId = context.TraceIdentifier,
+            ResponseData = null,
+        };
 
         context.Response.ContentType = "application/json";
         context.Response.StatusCode = statusCode;
 
-        var payload = new
-        {
-            status = statusCode,
-            messageCode = messageCode,
-            messageType = messageType.ToString(),
-            message = messageText,
-            traceId = context.TraceIdentifier,
-        };
-
-        await context.Response.WriteAsync(JsonSerializer.Serialize(payload, JsonOptions));
+        await context.Response.WriteAsync(JsonSerializer.Serialize(response, JsonOptions));
     }
 
     private static string GetLanguageCode(HttpContext context)

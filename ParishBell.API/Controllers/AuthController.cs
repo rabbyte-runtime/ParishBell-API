@@ -1,5 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using ParishBell.API.Helpers;
+using ParishBell.Core.Constants;
 using ParishBell.Core.DTOs.Auth;
 using ParishBell.Core.Interfaces;
 
@@ -8,21 +10,19 @@ namespace ParishBell.API.Controllers;
 [ApiController]
 [Route("api/v1/auth")]
 [EnableRateLimiting("auth")]
-public class AuthController(IAuthService authService) : ControllerBase
+public class AuthController(IAuthService authService, IMessageCache messages) : ControllerBase
 {
     private readonly IAuthService _authService = authService;
+    private readonly IMessageCache _messages = messages;
 
     // NOTE: POST - /api/v1/auth/register
     [HttpPost("register")]
-    [ProducesResponseType(typeof(AuthResponseDto), StatusCodes.Status201Created)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status409Conflict)]
-    [ProducesResponseType(StatusCodes.Status429TooManyRequests)]
     public async Task<IActionResult> Register([FromBody] RegisterRequestDto request, CancellationToken ct)
     {
         var ipAddress = GetClientIpAddress();
         var result = await _authService.RegisterAsync(request, ipAddress, ct);
-        return StatusCode(StatusCodes.Status201Created, result);
+        var response = ApiResponseBuilder.Build(HttpContext, _messages, StatusCodes.Status201Created, MessageCodes.AuthRegisterSuccess, result);
+        return StatusCode(StatusCodes.Status201Created, response);
     }
 
     // NOTE: Get client IP address

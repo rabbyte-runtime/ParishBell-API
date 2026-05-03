@@ -1,7 +1,5 @@
-﻿using System;
-using System.Collections.Generic;
-using Microsoft.EntityFrameworkCore;
-using ParishBell.Infrastructure;
+﻿using Microsoft.EntityFrameworkCore;
+using ParishBell.Core.Entities;
 
 namespace ParishBell.Infrastructure.Data;
 
@@ -12,429 +10,466 @@ public partial class ParishBellDbContext : DbContext
     {
     }
 
-    public virtual DbSet<Adminuser> Adminusers { get; set; }
+    public virtual DbSet<AdminUser> AdminUsers { get; set; }
 
     public virtual DbSet<Announcement> Announcements { get; set; }
 
-    public virtual DbSet<Announcementtranslation> Announcementtranslations { get; set; }
+    public virtual DbSet<AnnouncementTranslation> AnnouncementTranslations { get; set; }
 
-    public virtual DbSet<Appuser> Appusers { get; set; }
+    public virtual DbSet<AppUser> AppUsers { get; set; }
 
     public virtual DbSet<Event> Events { get; set; }
 
-    public virtual DbSet<Eventimage> Eventimages { get; set; }
+    public virtual DbSet<EventImage> EventImages { get; set; }
 
-    public virtual DbSet<Eventtranslation> Eventtranslations { get; set; }
+    public virtual DbSet<EventTranslation> EventTranslations { get; set; }
 
     public virtual DbSet<Language> Languages { get; set; }
 
-    public virtual DbSet<Liturgicalcalendar> Liturgicalcalendars { get; set; }
+    public virtual DbSet<LiturgicalCalendar> LiturgicalCalendars { get; set; }
 
-    public virtual DbSet<Liturgicalcalendartranslation> Liturgicalcalendartranslations { get; set; }
+    public virtual DbSet<LiturgicalCalendarTranslation> LiturgicalCalendarTranslations { get; set; }
 
     public virtual DbSet<Location> Locations { get; set; }
 
-    public virtual DbSet<Locationfeastday> Locationfeastdays { get; set; }
+    public virtual DbSet<LocationFeastDay> LocationFeastDays { get; set; }
 
-    public virtual DbSet<Locationimage> Locationimages { get; set; }
+    public virtual DbSet<LocationImage> LocationImages { get; set; }
 
-    public virtual DbSet<Locationtranslation> Locationtranslations { get; set; }
+    public virtual DbSet<LocationTranslation> LocationTranslations { get; set; }
 
-    public virtual DbSet<Locationtype> Locationtypes { get; set; }
+    public virtual DbSet<LocationType> LocationTypes { get; set; }
 
-    public virtual DbSet<Locationtypetranslation> Locationtypetranslations { get; set; }
+    public virtual DbSet<LocationTypeTranslation> LocationTypeTranslations { get; set; }
 
-    public virtual DbSet<Massschedule> Massschedules { get; set; }
+    public virtual DbSet<MassSchedule> MassSchedules { get; set; }
 
-    public virtual DbSet<Massscheduletranslation> Massscheduletranslations { get; set; }
+    public virtual DbSet<MassScheduleTranslation> MassScheduleTranslations { get; set; }
 
-    public virtual DbSet<Notificationslog> Notificationslogs { get; set; }
+    public virtual DbSet<NotificationsLog> NotificationsLogs { get; set; }
 
-    public virtual DbSet<Onboardingrequest> Onboardingrequests { get; set; }
+    public virtual DbSet<OnboardingRequest> OnboardingRequests { get; set; }
 
-    public virtual DbSet<Userdevice> Userdevices { get; set; }
+    public virtual DbSet<RefreshToken> RefreshTokens { get; set; }
 
-    public virtual DbSet<Userfollowedlocation> Userfollowedlocations { get; set; }
+    public virtual DbSet<UserDevice> UserDevices { get; set; }
 
-    public virtual DbSet<Usermassreminder> Usermassreminders { get; set; }
+    public virtual DbSet<UserFollowedLocation> UserFollowedLocations { get; set; }
+
+    public virtual DbSet<UserMassReminder> UserMassReminders { get; set; }
+
+    public virtual DbSet<Message> Messages { get; set; }
+
+    public virtual DbSet<MessageTranslation> MessageTranslations { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-        modelBuilder
-            .HasPostgresEnum("adminrole", new[] { "SuperAdmin", "Admin" })
-            .HasPostgresEnum("authprovider", new[] { "Email", "Google", "Apple" })
-            .HasPostgresEnum("deviceplatform", new[] { "iOS", "Android" })
-            .HasPostgresEnum("mediatype", new[] { "Audio", "Video" })
-            .HasPostgresEnum("notificationtype", new[] { "Event", "Announcement", "MassReminder", "FeastDay", "System" })
-            .HasPostgresEnum("onboardingstatus", new[] { "Pending", "Approved", "Rejected" });
+        modelBuilder.HasPostgresExtension("pgcrypto");
 
-        modelBuilder.Entity<Adminuser>(entity =>
+        modelBuilder.Entity<AdminUser>(entity =>
         {
-            entity.HasKey(e => e.Adminid).HasName("pk_admin_users");
+            entity.HasKey(e => e.AdminId).HasName("pk_admin_users");
 
-            entity.ToTable("adminusers", tb => tb.HasComment("Parish admins and Super Admin. Separate from app users."));
+            entity.ToTable("admin_users", tb => tb.HasComment("Parish admins and Super Admin. Separate from app users."));
 
-            entity.Property(e => e.Adminid).HasDefaultValueSql("gen_random_uuid()");
-            entity.Property(e => e.Createdat).HasDefaultValueSql("now()");
-            entity.Property(e => e.Isactive).HasDefaultValue(true);
-            entity.Property(e => e.Locationid).HasComment("Null for SuperAdmin. Required for parish Admin role.");
-            entity.Property(e => e.Passwordhash).HasComment("BCrypt hashed. Raw password never stored.");
+            entity.Property(e => e.AdminId).HasDefaultValueSql("gen_random_uuid()");
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("now()");
+            entity.Property(e => e.IsActive).HasDefaultValue(true);
+            entity.Property(e => e.PasswordHash).HasComment("BCrypt hashed. Raw password never stored.");
+            entity.Property(e => e.Role)
+                .HasConversion<short>()
+                .HasDefaultValue((short)2)
+                .HasComment("1=SuperAdmin, 2=Admin. SuperAdmin has NULL location_id.");
 
-            entity.HasOne(d => d.Location).WithMany(p => p.Adminusers)
+            entity.HasOne(d => d.Location).WithMany(p => p.AdminUsers)
                 .OnDelete(DeleteBehavior.SetNull)
                 .HasConstraintName("fk_au_location");
         });
 
         modelBuilder.Entity<Announcement>(entity =>
         {
-            entity.HasKey(e => e.Announcementid).HasName("pk_announcements");
+            entity.HasKey(e => e.AnnouncementId).HasName("pk_announcements");
 
             entity.ToTable("announcements", tb => tb.HasComment("Time-limited audio/video parish channel announcements for joined members only."));
 
-            entity.Property(e => e.Announcementid).HasDefaultValueSql("gen_random_uuid()");
-            entity.Property(e => e.Createdat).HasDefaultValueSql("now()");
-            entity.Property(e => e.Expiresat).HasComment("Between CreatedAt+1hr and CreatedAt+7days. Background job sets IsActive=FALSE on expiry.");
-            entity.Property(e => e.Isactive).HasDefaultValue(true);
-            entity.Property(e => e.Mediaurl).HasComment("Azure Blob Storage SAS URL for the audio/video file.");
+            entity.Property(e => e.AnnouncementId).HasDefaultValueSql("gen_random_uuid()");
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("now()");
+            entity.Property(e => e.ExpiresAt).HasComment("Between created_at+1hr and created_at+7days. Background job sets is_active=FALSE on expiry.");
+            entity.Property(e => e.IsActive).HasDefaultValue(true);
+            entity.Property(e => e.MediaType).HasConversion<short>().HasComment("1=Audio, 2=Video.");
+            entity.Property(e => e.MediaUrl).HasComment("Azure Blob Storage SAS URL for the audio/video file.");
 
-            entity.HasOne(d => d.CreatedbyNavigation).WithMany(p => p.Announcements)
+            entity.HasOne(d => d.CreatedByNavigation).WithMany(p => p.Announcements)
                 .OnDelete(DeleteBehavior.Restrict)
                 .HasConstraintName("fk_ann_created_by");
 
             entity.HasOne(d => d.Location).WithMany(p => p.Announcements).HasConstraintName("fk_ann_location");
         });
 
-        modelBuilder.Entity<Announcementtranslation>(entity =>
+        modelBuilder.Entity<AnnouncementTranslation>(entity =>
         {
-            entity.HasKey(e => e.Translationid).HasName("pk_announcement_translations");
+            entity.HasKey(e => e.TranslationId).HasName("pk_announcement_translations");
 
-            entity.ToTable("announcementtranslations", tb => tb.HasComment("Optional multilingual captions for announcements."));
+            entity.ToTable("announcement_translations", tb => tb.HasComment("Optional multilingual captions for announcements."));
 
-            entity.Property(e => e.Translationid).HasDefaultValueSql("gen_random_uuid()");
+            entity.Property(e => e.TranslationId).HasDefaultValueSql("gen_random_uuid()");
 
-            entity.HasOne(d => d.Announcement).WithMany(p => p.Announcementtranslations).HasConstraintName("fk_at_announcement");
+            entity.HasOne(d => d.Announcement).WithMany(p => p.AnnouncementTranslations).HasConstraintName("fk_at_announcement");
 
-            entity.HasOne(d => d.Language).WithMany(p => p.Announcementtranslations)
+            entity.HasOne(d => d.Language).WithMany(p => p.AnnouncementTranslations)
                 .OnDelete(DeleteBehavior.Restrict)
                 .HasConstraintName("fk_at_language");
         });
 
-        modelBuilder.Entity<Appuser>(entity =>
+        modelBuilder.Entity<AppUser>(entity =>
         {
-            entity.HasKey(e => e.Userid).HasName("pk_app_users");
+            entity.HasKey(e => e.UserId).HasName("pk_app_users");
 
-            entity.ToTable("appusers", tb => tb.HasComment("Registered ParishBell mobile app users."));
+            entity.ToTable("app_users", tb => tb.HasComment("Registered ParishBell mobile app users."));
 
-            entity.Property(e => e.Userid).HasDefaultValueSql("gen_random_uuid()");
-            entity.Property(e => e.Authproviderid).HasComment("Google/Apple subject ID. Null for email auth users.");
-            entity.Property(e => e.Createdat).HasDefaultValueSql("now()");
-            entity.Property(e => e.Isactive).HasDefaultValue(true);
-            entity.Property(e => e.Passwordhash).HasComment("BCrypt hashed. Null for Google/Apple social auth users.");
+            entity.Property(e => e.UserId).HasDefaultValueSql("gen_random_uuid()");
+            entity.Property(e => e.AuthProvider)
+                .HasConversion<short>()
+                .HasDefaultValue((short)1)
+                .HasComment("1=Email, 2=Google, 3=Apple.");
+            entity.Property(e => e.AuthProviderId).HasComment("Google/Apple subject ID. NULL for email auth users.");
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("now()");
+            entity.Property(e => e.IsActive).HasDefaultValue(true);
+            entity.Property(e => e.PasswordHash).HasComment("BCrypt hashed. NULL for social auth users.");
 
-            entity.HasOne(d => d.PreferredlanguageNavigation).WithMany(p => p.Appusers)
+            entity.HasOne(d => d.PreferredLanguageNavigation).WithMany(p => p.AppUsers)
                 .OnDelete(DeleteBehavior.Restrict)
                 .HasConstraintName("fk_appuser_language");
         });
 
         modelBuilder.Entity<Event>(entity =>
         {
-            entity.HasKey(e => e.Eventid).HasName("pk_events");
+            entity.HasKey(e => e.EventId).HasName("pk_events");
 
             entity.ToTable("events", tb => tb.HasComment("Parish events created and published by admins."));
 
-            entity.Property(e => e.Eventid).HasDefaultValueSql("gen_random_uuid()");
-            entity.Property(e => e.Createdat).HasDefaultValueSql("now()");
-            entity.Property(e => e.Isactive)
+            entity.Property(e => e.EventId).HasDefaultValueSql("gen_random_uuid()");
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("now()");
+            entity.Property(e => e.IsActive)
                 .HasDefaultValue(true)
-                .HasComment("Soft delete. False hides the event without deleting data.");
-            entity.Property(e => e.Ispublished).HasComment("False = draft. True = visible to users. Publishing triggers push notifications.");
+                .HasComment("Soft delete. FALSE hides the event without deleting data.");
+            entity.Property(e => e.IsPublished).HasComment("FALSE=draft. TRUE=visible to users. Publishing triggers push notifications.");
 
-            entity.HasOne(d => d.CreatedbyNavigation).WithMany(p => p.Events)
+            entity.HasOne(d => d.CreatedByNavigation).WithMany(p => p.Events)
                 .OnDelete(DeleteBehavior.Restrict)
                 .HasConstraintName("fk_ev_created_by");
 
             entity.HasOne(d => d.Location).WithMany(p => p.Events).HasConstraintName("fk_ev_location");
         });
 
-        modelBuilder.Entity<Eventimage>(entity =>
+        modelBuilder.Entity<EventImage>(entity =>
         {
-            entity.HasKey(e => e.Eventimageid).HasName("pk_event_images");
+            entity.HasKey(e => e.EventImageId).HasName("pk_event_images");
 
-            entity.ToTable("eventimages", tb => tb.HasComment("Photos for past events only. API enforces EventDate must be in the past."));
+            entity.ToTable("event_images", tb => tb.HasComment("Photos for past events only. API enforces event_date must be in the past."));
 
-            entity.Property(e => e.Eventimageid).HasDefaultValueSql("gen_random_uuid()");
-            entity.Property(e => e.Imageurl).HasComment("Azure Blob Storage URL. Compressed JPEG, max 1200x1200px.");
-            entity.Property(e => e.Uploadedat).HasDefaultValueSql("now()");
+            entity.Property(e => e.EventImageId).HasDefaultValueSql("gen_random_uuid()");
+            entity.Property(e => e.ImageUrl).HasComment("Azure Blob Storage URL. Compressed JPEG, max 1200x1200px.");
+            entity.Property(e => e.UploadedAt).HasDefaultValueSql("now()");
 
-            entity.HasOne(d => d.Event).WithMany(p => p.Eventimages).HasConstraintName("fk_ei_event");
+            entity.HasOne(d => d.Event).WithMany(p => p.EventImages).HasConstraintName("fk_ei_event");
 
-            entity.HasOne(d => d.UploadedbyNavigation).WithMany(p => p.Eventimages)
+            entity.HasOne(d => d.UploadedByNavigation).WithMany(p => p.EventImages)
                 .OnDelete(DeleteBehavior.Restrict)
                 .HasConstraintName("fk_ei_uploaded_by");
         });
 
-        modelBuilder.Entity<Eventtranslation>(entity =>
+        modelBuilder.Entity<EventTranslation>(entity =>
         {
-            entity.HasKey(e => e.Translationid).HasName("pk_event_translations");
+            entity.HasKey(e => e.TranslationId).HasName("pk_event_translations");
 
-            entity.ToTable("eventtranslations", tb => tb.HasComment("Multilingual titles and descriptions for each event."));
+            entity.ToTable("event_translations", tb => tb.HasComment("Multilingual titles and descriptions for each event."));
 
-            entity.Property(e => e.Translationid).HasDefaultValueSql("gen_random_uuid()");
+            entity.Property(e => e.TranslationId).HasDefaultValueSql("gen_random_uuid()");
 
-            entity.HasOne(d => d.Event).WithMany(p => p.Eventtranslations).HasConstraintName("fk_et_event");
+            entity.HasOne(d => d.Event).WithMany(p => p.EventTranslations).HasConstraintName("fk_et_event");
 
-            entity.HasOne(d => d.Language).WithMany(p => p.Eventtranslations)
+            entity.HasOne(d => d.Language).WithMany(p => p.EventTranslations)
                 .OnDelete(DeleteBehavior.Restrict)
                 .HasConstraintName("fk_et_language");
         });
 
         modelBuilder.Entity<Language>(entity =>
         {
-            entity.HasKey(e => e.Languageid).HasName("pk_languages");
+            entity.HasKey(e => e.LanguageId).HasName("pk_languages");
 
             entity.ToTable("languages", tb => tb.HasComment("Supported UI and content languages."));
 
-            entity.Property(e => e.Languageid).HasDefaultValueSql("gen_random_uuid()");
-            entity.Property(e => e.Isactive).HasDefaultValue(true);
-            entity.Property(e => e.Languagecode).HasComment("ISO 639-1 code: en, si, ta");
-            entity.Property(e => e.Nativename).HasComment("Name in the language itself.");
+            entity.Property(e => e.LanguageId).HasDefaultValueSql("gen_random_uuid()");
+            entity.Property(e => e.IsActive).HasDefaultValue(true);
+            entity.Property(e => e.LanguageCode).HasComment("ISO 639-1 code: en, si, ta");
+            entity.Property(e => e.NativeName).HasComment("Name in the language itself - e.g. සිංහල, தமிழ்");
         });
 
-        modelBuilder.Entity<Liturgicalcalendar>(entity =>
+        modelBuilder.Entity<LiturgicalCalendar>(entity =>
         {
-            entity.HasKey(e => e.Calendarid).HasName("pk_liturgical_calendar");
+            entity.HasKey(e => e.CalendarId).HasName("pk_liturgical_calendar");
 
-            entity.ToTable("liturgicalcalendar", tb => tb.HasComment("Shared calendar of feast days, Holy Days, seasons, novenas."));
+            entity.ToTable("liturgical_calendar", tb => tb.HasComment("Shared Catholic calendar of feast days, Holy Days, seasons, novenas."));
 
-            entity.Property(e => e.Calendarid).HasDefaultValueSql("gen_random_uuid()");
-            entity.Property(e => e.Createdat).HasDefaultValueSql("now()");
-            entity.Property(e => e.Isholyday).HasComment("True for Holy Days of Obligation.");
-            entity.Property(e => e.Isrecurringannually)
+            entity.Property(e => e.CalendarId).HasDefaultValueSql("gen_random_uuid()");
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("now()");
+            entity.Property(e => e.IsHolyDay).HasComment("TRUE for Holy Days of Obligation.");
+            entity.Property(e => e.IsRecurringAnnually)
                 .HasDefaultValue(true)
-                .HasComment("True = fixed annual (Month + Day). False = one-off (SpecificDate).");
+                .HasComment("TRUE=fixed annual (month+day). FALSE=one-off (specific_date).");
         });
 
-        modelBuilder.Entity<Liturgicalcalendartranslation>(entity =>
+        modelBuilder.Entity<LiturgicalCalendarTranslation>(entity =>
         {
-            entity.HasKey(e => e.Translationid).HasName("pk_liturgical_translations");
+            entity.HasKey(e => e.TranslationId).HasName("pk_liturgical_translations");
 
-            entity.ToTable("liturgicalcalendartranslations", tb => tb.HasComment("Multilingual titles and descriptions for each liturgical entry."));
+            entity.ToTable("liturgical_calendar_translations", tb => tb.HasComment("Multilingual titles and descriptions for each liturgical entry."));
 
-            entity.Property(e => e.Translationid).HasDefaultValueSql("gen_random_uuid()");
+            entity.Property(e => e.TranslationId).HasDefaultValueSql("gen_random_uuid()");
 
-            entity.HasOne(d => d.Calendar).WithMany(p => p.Liturgicalcalendartranslations).HasConstraintName("fk_lct_calendar");
+            entity.HasOne(d => d.Calendar).WithMany(p => p.LiturgicalCalendarTranslations).HasConstraintName("fk_lct_calendar");
 
-            entity.HasOne(d => d.Language).WithMany(p => p.Liturgicalcalendartranslations)
+            entity.HasOne(d => d.Language).WithMany(p => p.LiturgicalCalendarTranslations)
                 .OnDelete(DeleteBehavior.Restrict)
                 .HasConstraintName("fk_lct_language");
         });
 
         modelBuilder.Entity<Location>(entity =>
         {
-            entity.HasKey(e => e.Locationid).HasName("pk_locations");
+            entity.HasKey(e => e.LocationId).HasName("pk_locations");
 
-            entity.ToTable("locations", tb => tb.HasComment("All places of worship registered in ParishBell."));
+            entity.ToTable("locations", tb => tb.HasComment("All Catholic places of worship registered in ParishBell."));
 
-            entity.Property(e => e.Locationid).HasDefaultValueSql("gen_random_uuid()");
-            entity.Property(e => e.Createdat).HasDefaultValueSql("now()");
-            entity.Property(e => e.Isapproved).HasComment("Set TRUE by Super Admin. Location visible in app only when TRUE.");
-            entity.Property(e => e.Isrejected).HasComment("Set true on rejection. Location never shown in app.");
+            entity.Property(e => e.LocationId).HasDefaultValueSql("gen_random_uuid()");
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("now()");
+            entity.Property(e => e.IsApproved).HasComment("Set TRUE by Super Admin. Location visible in app only when TRUE.");
+            entity.Property(e => e.IsRejected).HasComment("Set TRUE on rejection. Location never shown in app.");
 
-            entity.HasOne(d => d.ApprovedbyNavigation).WithMany(p => p.LocationApprovedbyNavigations)
+            entity.HasOne(d => d.ApprovedByNavigation).WithMany(p => p.LocationApprovedByNavigations)
                 .OnDelete(DeleteBehavior.SetNull)
                 .HasConstraintName("fk_locations_approved_by");
 
-            entity.HasOne(d => d.Locationtype).WithMany(p => p.Locations)
+            entity.HasOne(d => d.LocationType).WithMany(p => p.Locations)
                 .OnDelete(DeleteBehavior.Restrict)
                 .HasConstraintName("fk_locations_type");
 
-            entity.HasOne(d => d.RejectedbyNavigation).WithMany(p => p.LocationRejectedbyNavigations)
+            entity.HasOne(d => d.RejectedByNavigation).WithMany(p => p.LocationRejectedByNavigations)
                 .OnDelete(DeleteBehavior.SetNull)
                 .HasConstraintName("fk_locations_rejected_by");
         });
 
-        modelBuilder.Entity<Locationfeastday>(entity =>
+        modelBuilder.Entity<LocationFeastDay>(entity =>
         {
-            entity.HasKey(e => e.Locationfeastdayid).HasName("pk_location_feast_days");
+            entity.HasKey(e => e.LocationFeastDayId).HasName("pk_location_feast_days");
 
-            entity.ToTable("locationfeastdays", tb => tb.HasComment("Parish-pinned feast days - ex: patron saint day with procession."));
+            entity.ToTable("location_feast_days", tb => tb.HasComment("Parish-pinned feast days - e.g. patron saint day with procession."));
 
-            entity.Property(e => e.Locationfeastdayid).HasDefaultValueSql("gen_random_uuid()");
-            entity.Property(e => e.Createdat).HasDefaultValueSql("now()");
-            entity.Property(e => e.Ishighlighted)
+            entity.Property(e => e.LocationFeastDayId).HasDefaultValueSql("gen_random_uuid()");
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("now()");
+            entity.Property(e => e.IsHighlighted)
                 .HasDefaultValue(true)
                 .HasComment("Shown as a special occasion in the app for this parish.");
 
-            entity.HasOne(d => d.Calendar).WithMany(p => p.Locationfeastdays).HasConstraintName("fk_lfd_calendar");
+            entity.HasOne(d => d.Calendar).WithMany(p => p.LocationFeastDays).HasConstraintName("fk_lfd_calendar");
 
-            entity.HasOne(d => d.Location).WithMany(p => p.Locationfeastdays).HasConstraintName("fk_lfd_location");
+            entity.HasOne(d => d.Location).WithMany(p => p.LocationFeastDays).HasConstraintName("fk_lfd_location");
         });
 
-        modelBuilder.Entity<Locationimage>(entity =>
+        modelBuilder.Entity<LocationImage>(entity =>
         {
-            entity.HasKey(e => e.Imageid).HasName("pk_location_images");
+            entity.HasKey(e => e.ImageId).HasName("pk_location_images");
 
-            entity.ToTable("locationimages", tb => tb.HasComment("Profile and gallery images for each location. Stored in Azure Blob Storage."));
+            entity.ToTable("location_images", tb => tb.HasComment("Profile and gallery images. Stored in Azure Blob Storage."));
 
-            entity.Property(e => e.Imageid).HasDefaultValueSql("gen_random_uuid()");
-            entity.Property(e => e.Imageurl).HasComment("Azure Blob Storage public URL. Compressed JPEG, max 1920x1080px.");
-            entity.Property(e => e.Isprimary).HasComment("Only one image per location should be true.");
-            entity.Property(e => e.Uploadedat).HasDefaultValueSql("now()");
+            entity.Property(e => e.ImageId).HasDefaultValueSql("gen_random_uuid()");
+            entity.Property(e => e.ImageUrl).HasComment("Azure Blob Storage public URL. Compressed JPEG, max 1920x1080px.");
+            entity.Property(e => e.IsPrimary).HasComment("Only one image per location should be TRUE.");
+            entity.Property(e => e.UploadedAt).HasDefaultValueSql("now()");
 
-            entity.HasOne(d => d.Location).WithMany(p => p.Locationimages).HasConstraintName("fk_li_location");
+            entity.HasOne(d => d.Location).WithMany(p => p.LocationImages).HasConstraintName("fk_li_location");
 
-            entity.HasOne(d => d.UploadedbyNavigation).WithMany(p => p.Locationimages)
+            entity.HasOne(d => d.UploadedByNavigation).WithMany(p => p.LocationImages)
                 .OnDelete(DeleteBehavior.SetNull)
                 .HasConstraintName("fk_li_uploaded_by");
         });
 
-        modelBuilder.Entity<Locationtranslation>(entity =>
+        modelBuilder.Entity<LocationTranslation>(entity =>
         {
-            entity.HasKey(e => e.Translationid).HasName("pk_location_translations");
+            entity.HasKey(e => e.TranslationId).HasName("pk_location_translations");
 
-            entity.ToTable("locationtranslations", tb => tb.HasComment("Multilingual names, descriptions, and addresses for each location."));
+            entity.ToTable("location_translations", tb => tb.HasComment("Multilingual names, descriptions, and addresses for each location."));
 
-            entity.Property(e => e.Translationid).HasDefaultValueSql("gen_random_uuid()");
+            entity.Property(e => e.TranslationId).HasDefaultValueSql("gen_random_uuid()");
 
-            entity.HasOne(d => d.Language).WithMany(p => p.Locationtranslations)
+            entity.HasOne(d => d.Language).WithMany(p => p.LocationTranslations)
                 .OnDelete(DeleteBehavior.Restrict)
                 .HasConstraintName("fk_lt_language");
 
-            entity.HasOne(d => d.Location).WithMany(p => p.Locationtranslations).HasConstraintName("fk_lt_location");
+            entity.HasOne(d => d.Location).WithMany(p => p.LocationTranslations).HasConstraintName("fk_lt_location");
         });
 
-        modelBuilder.Entity<Locationtype>(entity =>
+        modelBuilder.Entity<LocationType>(entity =>
         {
-            entity.HasKey(e => e.Locationtypeid).HasName("pk_location_types");
+            entity.HasKey(e => e.LocationTypeId).HasName("pk_location_types");
 
-            entity.ToTable("locationtypes", tb => tb.HasComment("Categories of locations — Church, Cathedral, Shrine, etc."));
+            entity.ToTable("location_types", tb => tb.HasComment("Categories of Catholic locations - Church, Cathedral, Shrine, etc."));
 
-            entity.Property(e => e.Locationtypeid).HasDefaultValueSql("gen_random_uuid()");
-            entity.Property(e => e.Createdat).HasDefaultValueSql("now()");
-            entity.Property(e => e.Isactive).HasDefaultValue(true);
+            entity.Property(e => e.LocationTypeId).HasDefaultValueSql("gen_random_uuid()");
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("now()");
+            entity.Property(e => e.IsActive).HasDefaultValue(true);
         });
 
-        modelBuilder.Entity<Locationtypetranslation>(entity =>
+        modelBuilder.Entity<LocationTypeTranslation>(entity =>
         {
-            entity.HasKey(e => e.Translationid).HasName("pk_location_type_translations");
+            entity.HasKey(e => e.TranslationId).HasName("pk_location_type_translations");
 
-            entity.ToTable("locationtypetranslations", tb => tb.HasComment("Translated names for each location type per language."));
+            entity.ToTable("location_type_translations", tb => tb.HasComment("Translated names for each location type per language."));
 
-            entity.Property(e => e.Translationid).HasDefaultValueSql("gen_random_uuid()");
+            entity.Property(e => e.TranslationId).HasDefaultValueSql("gen_random_uuid()");
 
-            entity.HasOne(d => d.Language).WithMany(p => p.Locationtypetranslations)
+            entity.HasOne(d => d.Language).WithMany(p => p.LocationTypeTranslations)
                 .OnDelete(DeleteBehavior.Restrict)
                 .HasConstraintName("fk_ltt_language");
 
-            entity.HasOne(d => d.Locationtype).WithMany(p => p.Locationtypetranslations).HasConstraintName("fk_ltt_location_type");
+            entity.HasOne(d => d.LocationType).WithMany(p => p.LocationTypeTranslations).HasConstraintName("fk_ltt_location_type");
         });
 
-        modelBuilder.Entity<Massschedule>(entity =>
+        modelBuilder.Entity<MassSchedule>(entity =>
         {
-            entity.HasKey(e => e.Scheduleid).HasName("pk_mass_schedules");
+            entity.HasKey(e => e.ScheduleId).HasName("pk_mass_schedules");
 
-            entity.ToTable("massschedules", tb => tb.HasComment("Weekly recurring and special one-off mass times per location."));
+            entity.ToTable("mass_schedules", tb => tb.HasComment("Weekly recurring and special one-off mass times per location."));
 
-            entity.Property(e => e.Scheduleid).HasDefaultValueSql("gen_random_uuid()");
-            entity.Property(e => e.Createdat).HasDefaultValueSql("now()");
-            entity.Property(e => e.Dayofweek).HasComment("0=Sunday, 1=Monday, 2=Tuesday, 3=Wednesday, 4=Thursday, 5=Friday, 6=Saturday.");
-            entity.Property(e => e.Isactive).HasDefaultValue(true);
-            entity.Property(e => e.Isspecial).HasComment("True for seasonal/one-off masses. Requires ValidFrom and ValidTo.");
+            entity.Property(e => e.ScheduleId).HasDefaultValueSql("gen_random_uuid()");
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("now()");
+            entity.Property(e => e.DayOfWeek).HasComment("0=Sunday, 1=Monday, 2=Tuesday, 3=Wednesday, 4=Thursday, 5=Friday, 6=Saturday.");
+            entity.Property(e => e.IsActive).HasDefaultValue(true);
+            entity.Property(e => e.IsSpecial).HasComment("TRUE for seasonal/one-off masses. Requires valid_from and valid_to.");
 
-            entity.HasOne(d => d.Location).WithMany(p => p.Massschedules).HasConstraintName("fk_ms_location");
+            entity.HasOne(d => d.Location).WithMany(p => p.MassSchedules).HasConstraintName("fk_ms_location");
         });
 
-        modelBuilder.Entity<Massscheduletranslation>(entity =>
+        modelBuilder.Entity<MassScheduleTranslation>(entity =>
         {
-            entity.HasKey(e => e.Translationid).HasName("pk_mass_schedule_translations");
+            entity.HasKey(e => e.TranslationId).HasName("pk_mass_schedule_translations");
 
-            entity.ToTable("massscheduletranslations", tb => tb.HasComment("Multilingual labels for mass schedule entries."));
+            entity.ToTable("mass_schedule_translations", tb => tb.HasComment("Multilingual labels for mass schedule entries."));
 
-            entity.Property(e => e.Translationid).HasDefaultValueSql("gen_random_uuid()");
-            entity.Property(e => e.Label).HasComment("Ex: Sunday Family Mass, Sinhala Mass, Confession.");
+            entity.Property(e => e.TranslationId).HasDefaultValueSql("gen_random_uuid()");
+            entity.Property(e => e.Label).HasComment("e.g. Sunday Family Mass, Sinhala Mass, Confession.");
 
-            entity.HasOne(d => d.Language).WithMany(p => p.Massscheduletranslations)
+            entity.HasOne(d => d.Language).WithMany(p => p.MassScheduleTranslations)
                 .OnDelete(DeleteBehavior.Restrict)
                 .HasConstraintName("fk_mst_language");
 
-            entity.HasOne(d => d.Schedule).WithMany(p => p.Massscheduletranslations).HasConstraintName("fk_mst_schedule");
+            entity.HasOne(d => d.Schedule).WithMany(p => p.MassScheduleTranslations).HasConstraintName("fk_mst_schedule");
         });
 
-        modelBuilder.Entity<Notificationslog>(entity =>
+        modelBuilder.Entity<NotificationsLog>(entity =>
         {
-            entity.HasKey(e => e.Notificationid).HasName("pk_notifications_log");
+            entity.HasKey(e => e.NotificationId).HasName("pk_notifications_log");
 
-            entity.ToTable("notificationslog", tb => tb.HasComment("Log of all push notifications sent. Used for debugging and retry logic."));
+            entity.ToTable("notifications_log", tb => tb.HasComment("Log of all push notifications sent. Used for debugging and retry logic."));
 
-            entity.Property(e => e.Notificationid).HasDefaultValueSql("gen_random_uuid()");
-            entity.Property(e => e.Issent).HasComment("False if push delivery failed. Retry logic queries IsSent = False.");
-            entity.Property(e => e.Referenceid).HasComment("ID of related entity - EventId, AnnouncementId, CalendarId, etc.");
+            entity.Property(e => e.NotificationId).HasDefaultValueSql("gen_random_uuid()");
+            entity.Property(e => e.IsSent).HasComment("FALSE if push delivery failed. Retry logic queries is_sent=FALSE.");
+            entity.Property(e => e.ReferenceId).HasComment("ID of related entity — event_id, announcement_id, calendar_id, etc.");
+            entity.Property(e => e.Type).HasConversion<short>().HasComment("1=Event, 2=Announcement, 3=MassReminder, 4=FeastDay, 5=System.");
 
-            entity.HasOne(d => d.User).WithMany(p => p.Notificationslogs).HasConstraintName("fk_nl_user");
+            entity.HasOne(d => d.User).WithMany(p => p.NotificationsLogs).HasConstraintName("fk_nl_user");
         });
 
-        modelBuilder.Entity<Onboardingrequest>(entity =>
+        modelBuilder.Entity<OnboardingRequest>(entity =>
         {
-            entity.HasKey(e => e.Requestid).HasName("pk_onboarding_requests");
+            entity.HasKey(e => e.RequestId).HasName("pk_onboarding_requests");
 
-            entity.ToTable("onboardingrequests", tb => tb.HasComment("Parish self-registration requests reviewed by Super Admin."));
+            entity.ToTable("onboarding_requests", tb => tb.HasComment("Parish self-registration requests reviewed by Super Admin."));
 
-            entity.Property(e => e.Requestid).HasDefaultValueSql("gen_random_uuid()");
-            entity.Property(e => e.Rejectionreason).HasComment("Required when Status = Rejected. Emailed to requesting admin.");
-            entity.Property(e => e.Submittedat).HasDefaultValueSql("now()");
+            entity.Property(e => e.RequestId).HasDefaultValueSql("gen_random_uuid()");
+            entity.Property(e => e.RejectionReason).HasComment("Required when status=3. Emailed to requesting admin.");
+            entity.Property(e => e.Status)
+                .HasConversion<short>()
+                .HasDefaultValue((short)1)
+                .HasComment("1=Pending, 2=Approved, 3=Rejected. Rejected requests never shown again.");
+            entity.Property(e => e.SubmittedAt).HasDefaultValueSql("now()");
 
-            entity.HasOne(d => d.Location).WithMany(p => p.Onboardingrequests).HasConstraintName("fk_or_location");
+            entity.HasOne(d => d.Location).WithMany(p => p.OnboardingRequests).HasConstraintName("fk_or_location");
 
-            entity.HasOne(d => d.ReviewedbyNavigation).WithMany(p => p.Onboardingrequests)
+            entity.HasOne(d => d.ReviewedByNavigation).WithMany(p => p.OnboardingRequests)
                 .OnDelete(DeleteBehavior.SetNull)
                 .HasConstraintName("fk_or_reviewed_by");
         });
 
-        modelBuilder.Entity<Userdevice>(entity =>
+        modelBuilder.Entity<RefreshToken>(entity =>
         {
-            entity.HasKey(e => e.Deviceid).HasName("pk_user_devices");
+            entity.HasKey(e => e.RefreshTokenId).HasName("pk_refresh_tokens");
 
-            entity.ToTable("userdevices", tb => tb.HasComment("Push notification tokens per user. One user may have multiple devices."));
+            entity.Property(e => e.RefreshTokenId).HasDefaultValueSql("gen_random_uuid()");
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("now()");
 
-            entity.Property(e => e.Deviceid).HasDefaultValueSql("gen_random_uuid()");
-            entity.Property(e => e.Devicetoken).HasComment("APNs token (iOS) or FCM registration token (Android).");
-            entity.Property(e => e.Lastactiveat)
+            entity.HasOne(d => d.User).WithMany(p => p.RefreshTokens).HasConstraintName("fk_rt_user");
+        });
+
+        modelBuilder.Entity<UserDevice>(entity =>
+        {
+            entity.HasKey(e => e.DeviceId).HasName("pk_user_devices");
+
+            entity.ToTable("user_devices", tb => tb.HasComment("Push notification tokens per user. One user may have multiple devices."));
+
+            entity.Property(e => e.DeviceId).HasDefaultValueSql("gen_random_uuid()");
+            entity.Property(e => e.LastActiveAt)
                 .HasDefaultValueSql("now()")
-                .HasComment("Tokens with LastActiveAt > 90 days are pruned by background job.");
-            entity.Property(e => e.Registeredat).HasDefaultValueSql("now()");
+                .HasComment("Tokens inactive > 90 days are pruned by background job.");
+            entity.Property(e => e.Platform).HasConversion<short>().HasComment("1=iOS (APNs), 2=Android (FCM).");
+            entity.Property(e => e.RegisteredAt).HasDefaultValueSql("now()");
 
-            entity.HasOne(d => d.User).WithMany(p => p.Userdevices).HasConstraintName("fk_ud_user");
+            entity.HasOne(d => d.User).WithMany(p => p.UserDevices).HasConstraintName("fk_ud_user");
         });
 
-        modelBuilder.Entity<Userfollowedlocation>(entity =>
+        modelBuilder.Entity<UserFollowedLocation>(entity =>
         {
-            entity.HasKey(e => new { e.Userid, e.Locationid }).HasName("pk_user_followed_locations");
+            entity.HasKey(e => new { e.UserId, e.LocationId }).HasName("pk_user_followed_locations");
 
-            entity.ToTable("userfollowedlocations", tb => tb.HasComment("User joining a church. Composite PK. Drives push notification targeting."));
+            entity.ToTable("user_followed_locations", tb => tb.HasComment("User joining a church. Composite PK. Drives push notification targeting."));
 
-            entity.Property(e => e.Followedat).HasDefaultValueSql("now()");
+            entity.Property(e => e.FollowedAt).HasDefaultValueSql("now()");
 
-            entity.HasOne(d => d.Location).WithMany(p => p.Userfollowedlocations).HasConstraintName("fk_ufl_location");
+            entity.HasOne(d => d.Location).WithMany(p => p.UserFollowedLocations).HasConstraintName("fk_ufl_location");
 
-            entity.HasOne(d => d.User).WithMany(p => p.Userfollowedlocations).HasConstraintName("fk_ufl_user");
+            entity.HasOne(d => d.User).WithMany(p => p.UserFollowedLocations).HasConstraintName("fk_ufl_user");
         });
 
-        modelBuilder.Entity<Usermassreminder>(entity =>
+        modelBuilder.Entity<UserMassReminder>(entity =>
         {
-            entity.HasKey(e => e.Reminderid).HasName("pk_user_mass_reminders");
+            entity.HasKey(e => e.ReminderId).HasName("pk_user_mass_reminders");
 
-            entity.ToTable("usermassreminders", tb => tb.HasComment("Personal push notification reminders set by users for specific mass times."));
+            entity.ToTable("user_mass_reminders", tb => tb.HasComment("Personal push reminders set by users for specific mass times."));
 
-            entity.Property(e => e.Reminderid).HasDefaultValueSql("gen_random_uuid()");
-            entity.Property(e => e.Createdat).HasDefaultValueSql("now()");
-            entity.Property(e => e.Isactive).HasDefaultValue(true);
-            entity.Property(e => e.Minutesbefore)
+            entity.Property(e => e.ReminderId).HasDefaultValueSql("gen_random_uuid()");
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("now()");
+            entity.Property(e => e.IsActive).HasDefaultValue(true);
+            entity.Property(e => e.MinutesBefore)
                 .HasDefaultValue(30)
-                .HasComment("Ex: 15, 30, 60. Background job triggers push at (MassTime - MinutesBefore).");
+                .HasComment("e.g. 15, 30, 60. Background job triggers push at (mass_time - minutes_before).");
 
-            entity.HasOne(d => d.Schedule).WithMany(p => p.Usermassreminders).HasConstraintName("fk_umr_schedule");
+            entity.HasOne(d => d.Schedule).WithMany(p => p.UserMassReminders).HasConstraintName("fk_umr_schedule");
 
-            entity.HasOne(d => d.User).WithMany(p => p.Usermassreminders).HasConstraintName("fk_umr_user");
+            entity.HasOne(d => d.User).WithMany(p => p.UserMassReminders).HasConstraintName("fk_umr_user");
+        });
+
+        modelBuilder.Entity<Message>(entity =>
+        {
+            entity.HasKey(e => e.MessageId).HasName("messages_pkey");
+            entity.Property(e => e.MessageId).HasDefaultValueSql("gen_random_uuid()");
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("now()");
+        });
+
+        modelBuilder.Entity<MessageTranslation>(entity =>
+        {
+            entity.HasKey(e => e.TranslationId).HasName("message_translations_pkey");
+            entity.Property(e => e.TranslationId).HasDefaultValueSql("gen_random_uuid()");
+            entity.HasOne(d => d.MessageNavigation).WithMany(p => p.MessageTranslations).HasConstraintName("fk_message_translations_message");
         });
 
         OnModelCreatingPartial(modelBuilder);

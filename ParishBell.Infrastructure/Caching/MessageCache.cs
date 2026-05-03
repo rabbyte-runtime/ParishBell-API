@@ -17,24 +17,24 @@ public class MessageCache(IMessageRepository repo, IMemoryCache cache, ILogger<M
 
     public string GetText(string messageCode, string languageCode = FallbackLanguage)
     {
-        if (!_cache.TryGetValue(CacheKey, out Dictionary<string, Dictionary<string, string>>? messages) || messages is null)
+        if (!TryGetCachedMessages(out var messages) || messages is null)
         {
             // IMPORTANT: Cache miss - should not happen after startup but handle gracefully
             _logger.LogWarning("Message cache miss for code '{Code}'. Cache may not be loaded yet.", messageCode);
-            return messageCode; // NOTE: Return code
+            return messageCode;
         }
 
-        if (!messages.TryGetValue(messageCode, out var translations))
+        if (!messages.TryGetValue(messageCode, out var cached))
         {
             _logger.LogWarning("Message code '{Code}' not found in cache.", messageCode);
             return messageCode;
         }
 
         // NOTE: Try requested language first - else, fall back to English
-        if (translations.TryGetValue(languageCode, out var text))
+        if (cached.Translations.TryGetValue(languageCode, out var text))
             return text;
 
-        if (translations.TryGetValue(FallbackLanguage, out var fallback))
+        if (cached.Translations.TryGetValue(FallbackLanguage, out var fallback))
         {
             _logger.LogDebug("No '{Lang}' translation for '{Code}'. Using English fallback.", languageCode, messageCode);
             return fallback;

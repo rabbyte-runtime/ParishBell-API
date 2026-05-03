@@ -20,4 +20,7 @@ public static class MessageCodes
     public const string GeneralNotFound = "PB-2";
     public const string GeneralUnauthorized = "PB-3";
     public const string GeneralForbidden = "PB-4";
+
+    // NOTE: Other
+    public const string RateLimitExceeded = "PB-16";
 }

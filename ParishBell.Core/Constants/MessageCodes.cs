@@ -23,4 +23,14 @@ public static class MessageCodes
 
     // NOTE: Other
     public const string RateLimitExceeded = "PB-16";
+
+    // NOTE: Validations
+    public const string ValidationFullNameRequired = "PB-17";
+    public const string ValidationFullNameLength = "PB-18";
+    public const string ValidationEmailRequired = "PB-19";
+    public const string ValidationEmailInvalid = "PB-20";
+    public const string ValidationEmailTooLong = "PB-21";
+    public const string ValidationPasswordRequired = "PB-22";
+    public const string ValidationConfirmPasswordRequired = "PB-23";
+    public const string ValidationPreferredLanguageRequired = "PB-24";
 }

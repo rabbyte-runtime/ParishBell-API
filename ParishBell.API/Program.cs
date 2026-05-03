@@ -1,5 +1,6 @@
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using ParishBell.Application.Services;
 using ParishBell.Core.Interfaces;
@@ -60,6 +61,46 @@ builder.Services.AddRateLimiter(options =>
     };
 });
 
+// NOTE: Custom model validation error response
+builder.Services.Configure<ApiBehaviorOptions>(options =>
+{
+    options.InvalidModelStateResponseFactory = context =>
+    {
+        // NOTE: Read Accept-Language from headers
+        var lang = context.HttpContext.Request.Headers.AcceptLanguage.FirstOrDefault()?.Split(',')[0].Trim().ToLowerInvariant();
+        lang = lang is "en" or "si" or "ta" ? lang : "en";
+
+        // NOTE: Resolve IMessageCache from DI
+        var messages = context.HttpContext.RequestServices.GetRequiredService<IMessageCache>();
+
+        // NOTE: Build field errors with localized messages
+        var fieldErrors = context.ModelState.Where(kvp => kvp.Value?.Errors.Count > 0)
+                        .ToDictionary(
+                            kvp => ToCamelCase(kvp.Key),
+                            kvp => kvp.Value!.Errors
+                                .Select(e => new
+                                {
+                                    messageCode = e.ErrorMessage,
+                                    message = messages.GetText(e.ErrorMessage, lang),
+                                }).ToArray());
+
+        var response = new
+        {
+            status = 422,
+            messageCode = "PB-25",  // NOTE: Generic model validation error message code
+            messageType = "Error",
+            message = messages.GetText("PB-25", lang),
+            fieldErrors,
+            traceId = context.HttpContext.TraceIdentifier,
+        };
+
+        return new UnprocessableEntityObjectResult(response)
+        {
+            ContentTypes = { "application/json" }
+        };
+    };
+});
+
 var app = builder.Build();
 
 // NOTE: Configure the HTTP request pipeline.
@@ -79,3 +120,6 @@ app.UseRateLimiter();
 app.MapControllers();
 
 app.Run();
+
+// NOTE: Helper method to convert to CamelCase
+static string ToCamelCase(string name) => string.IsNullOrEmpty(name) || char.IsLower(name[0]) ? name : char.ToLowerInvariant(name[0]) + name[1..];

@@ -14,6 +14,7 @@ public static class MessageCodes
     public const string AuthInvalidSocialToken = "PB-13";
     public const string AuthUnsupportedProvider = "PB-14";
     public const string AuthSocialEmailConflict = "PB-15";
+    public const string AuthRegisterSuccess = "PB-27";
 
     // NOTE: General
     public const string GeneralUnexpectedError = "PB-1";

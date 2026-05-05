@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using ParishBell.Core.Entities;
+using ParishBell.Core.Enums;
 using ParishBell.Core.Interfaces;
 using ParishBell.Infrastructure.Data;
 
@@ -26,4 +27,9 @@ public class AuthRepository(ParishBellDbContext db) : IAuthRepository
         _dbContext.RefreshTokens.Add(token);
         await _dbContext.SaveChangesAsync(ct);
     }
+
+    // NOTE: Get user by external auth provider + provider user id
+    // IMPORTANT: Used to detect if a Google/Apple user already exists
+    public async Task<AppUser?> GetUserByProviderAsync(AuthProvider provider, string providerUserId, CancellationToken ct = default)
+        => await _dbContext.AppUsers.AsNoTracking().FirstOrDefaultAsync(u => u.AuthProvider == (short)provider && u.AuthProviderId == providerUserId && u.IsActive, ct);
 }

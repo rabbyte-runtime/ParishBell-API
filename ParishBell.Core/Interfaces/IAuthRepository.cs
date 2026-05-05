@@ -1,4 +1,5 @@
 using ParishBell.Core.Entities;
+using ParishBell.Core.Enums;
 
 namespace ParishBell.Core.Interfaces;
 
@@ -12,4 +13,7 @@ public interface IAuthRepository
 
     // NOTE: Saves a given refresh token
     Task SaveRefreshTokenAsync(RefreshToken token, CancellationToken ct = default);
+
+    // NOTE: Check if a user already exists with the given social provider + provider user id
+    Task<AppUser?> GetUserByProviderAsync(AuthProvider provider, string providerUserId, CancellationToken ct = default);
 }

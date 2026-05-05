@@ -27,6 +27,9 @@ builder.Services.AddDbContext<ParishBellDbContext>(options => options.UseNpgsql(
 // NOTE: Add Memory Cache
 builder.Services.AddMemoryCache();
 
+// NOTE: Configure Google Auth settings - reads from user-secrets
+builder.Services.Configure<GoogleAuthSettings>(builder.Configuration.GetSection("GoogleAuth"));
+
 // NOTE: Inject IMessageRepository and IMessageCache
 builder.Services.AddScoped<IMessageRepository, MessageRepository>();
 builder.Services.AddScoped<IMessageCache, MessageCache>();
@@ -41,6 +44,7 @@ builder.Services.AddScoped<IAuthRepository, AuthRepository>();
 builder.Services.AddScoped<IPasswordHasher, PasswordHasher>();
 builder.Services.Configure<JwtSettings>(builder.Configuration.GetSection("JwtSettings"));
 builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
+builder.Services.AddScoped<IExternalAuthValidator, GoogleAuthValidator>();
 
 // NOTE: Load user secrets
 if (builder.Environment.IsDevelopment())

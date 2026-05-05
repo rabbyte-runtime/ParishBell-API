@@ -15,6 +15,7 @@ public static class MessageCodes
     public const string AuthUnsupportedProvider = "PB-14";
     public const string AuthSocialEmailConflict = "PB-15";
     public const string AuthRegisterSuccess = "PB-27";
+    public const string AuthGoogleEmailNotVerified = "PB-29";
 
     // NOTE: General
     public const string GeneralUnexpectedError = "PB-1";
@@ -34,4 +35,5 @@ public static class MessageCodes
     public const string ValidationPasswordRequired = "PB-22";
     public const string ValidationConfirmPasswordRequired = "PB-23";
     public const string ValidationPreferredLanguageRequired = "PB-24";
+    public const string ValidationProviderRequired = "PB-28";
 }

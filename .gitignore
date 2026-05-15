@@ -55,3 +55,10 @@ CodeCoverage/
 *.VisualState.xml
 TestResult.xml
 nunit-*.xml
+
+# C# Dev Kit
+/ParishBell.API/ParishBell.API.csproj.lscache
+/ParishBell.Application/ParishBell.Application.csproj.lscache
+/ParishBell.Infrastructure/ParishBell.Infrastructure.csproj.lscache
+/ParishBell.Core/ParishBell.Core.csproj.lscache
+/ParishBell.Tests/ParishBell.Tests.csproj.lscache

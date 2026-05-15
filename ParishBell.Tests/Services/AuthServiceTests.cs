@@ -759,6 +759,282 @@ public class AuthServiceTests
         _mockRepo.Verify(r => r.SaveRefreshTokenAsync(It.IsAny<RefreshToken>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
+    // NOTE: REFRESH TOKEN TESTS
+
+    // IMPORTANT: TEST 21 - Valid refresh token succeeds, old token revoked
+    [Fact]
+    public async Task RefreshTokenAsync_WithValidToken_ReturnsNewTokensAndRevokesOld()
+    {
+        // NOTE: Arrange
+        var request = new RefreshTokenRequestDto
+        {
+            RefreshToken = "raw_refresh_token"
+        };
+
+        // NOTE: Active user attached to the refresh token
+        var user = new AppUser
+        {
+            UserId = Guid.NewGuid(),
+            Email = "test@parishbell.lk",
+            FullName = "Test User",
+            IsActive = true,
+            PreferredLanguage = _testLanguageId,
+            AuthProvider = (short)AuthProvider.Email
+        };
+
+        // NOTE: A valid, unrevoked, unexpired refresh token in DB
+        var storedToken = new RefreshToken
+        {
+            RefreshTokenId = Guid.NewGuid(),
+            UserId = user.UserId,
+            User = user,
+            TokenHash = "hashed_refresh", // IMPORTANT: Matches what _mockJwt.HashToken returns
+            ExpiresAt = DateTime.UtcNow.AddDays(15),
+            CreatedAt = DateTime.UtcNow.AddDays(-15),
+            IsRevoked = false
+        };
+
+        _mockRepo.Setup(r => r.GetRefreshTokenByHashAsync("hashed_refresh", It.IsAny<CancellationToken>())).ReturnsAsync(storedToken);
+
+        // NOTE: Mock revocation
+        _mockRepo.Setup(r => r.RevokeRefreshTokenAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+
+        // NOTE: Mock last login update
+        _mockRepo.Setup(r => r.UpdateLastLoginAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+
+        // NOTE: Act
+        var result = await _authService.RefreshTokenAsync(request, "127.0.0.1");
+
+        // NOTE: Assert
+        Assert.NotNull(result);
+        Assert.Equal("access_token", result.AccessToken);
+        Assert.Equal("refresh_token", result.RefreshToken);
+        Assert.Equal(user.UserId, result.User.UserId);
+
+        // IMPORTANT: Old token must be revoked (rotation)
+        _mockRepo.Verify(r => r.RevokeRefreshTokenAsync(storedToken.RefreshTokenId, It.IsAny<CancellationToken>()), Times.Once);
+
+        // IMPORTANT: New refresh token saved
+        _mockRepo.Verify(r => r.SaveRefreshTokenAsync(It.IsAny<RefreshToken>(), It.IsAny<CancellationToken>()), Times.Once);
+
+        // IMPORTANT: LastLoginAt updated
+        _mockRepo.Verify(r => r.UpdateLastLoginAsync(user.UserId, It.IsAny<CancellationToken>()), Times.Once);
+
+        // IMPORTANT: Reuse detection should NOT be triggered
+        _mockRepo.Verify(r => r.RevokeAllUserRefreshTokensAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    // IMPORTANT: TEST 22 - Non-existent refresh token -> UnauthorizedException
+    [Fact]
+    public async Task RefreshTokenAsync_WithNonExistentToken_ThrowsUnauthorizedException()
+    {
+        // NOTE: Arrange
+        var request = new RefreshTokenRequestDto
+        {
+            RefreshToken = "unknown_token"
+        };
+
+        // IMPORTANT: Token hash not found in DB
+        _mockRepo.Setup(r => r.GetRefreshTokenByHashAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync((RefreshToken?)null);
+
+        // NOTE: Act & Assert
+        var exception = await Assert.ThrowsAsync<UnauthorizedException>(() => _authService.RefreshTokenAsync(request, "127.0.0.1"));
+        Assert.Equal(MessageCodes.AuthInvalidRefreshToken, exception.MessageCode);
+
+        // IMPORTANT: No revocation, no new tokens
+        _mockRepo.Verify(r => r.RevokeRefreshTokenAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+        _mockRepo.Verify(r => r.RevokeAllUserRefreshTokensAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+        _mockRepo.Verify(r => r.SaveRefreshTokenAsync(It.IsAny<RefreshToken>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    // IMPORTANT: TEST 23 - Reused (already revoked) refresh token -> revoke ALL sessions
+    [Fact]
+    public async Task RefreshTokenAsync_WithRevokedToken_RevokesAllUserSessionsAndThrows()
+    {
+        // NOTE: Arrange
+        var request = new RefreshTokenRequestDto
+        {
+            RefreshToken = "stolen_revoked_token"
+        };
+
+        var user = new AppUser
+        {
+            UserId = Guid.NewGuid(),
+            Email = "victim@parishbell.lk",
+            IsActive = true,
+            AuthProvider = (short)AuthProvider.Email
+        };
+
+        // IMPORTANT: Token exists but was already revoked - sign of replay/theft
+        var revokedToken = new RefreshToken
+        {
+            RefreshTokenId = Guid.NewGuid(),
+            UserId = user.UserId,
+            User = user,
+            TokenHash = "hashed_refresh",
+            ExpiresAt = DateTime.UtcNow.AddDays(15),
+            IsRevoked = true, // IMPORTANT: Already revoked!
+            RevokedAt = DateTime.UtcNow.AddHours(-1)
+        };
+
+        _mockRepo.Setup(r => r.GetRefreshTokenByHashAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(revokedToken);
+
+        // NOTE: Mock the all-sessions revocation
+        _mockRepo.Setup(r => r.RevokeAllUserRefreshTokensAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+
+        // NOTE: Act & Assert
+        var exception = await Assert.ThrowsAsync<UnauthorizedException>(() => _authService.RefreshTokenAsync(request, "127.0.0.1"));
+        Assert.Equal(MessageCodes.AuthRefreshTokenReuse, exception.MessageCode);
+
+        // IMPORTANT: ALL user sessions must be revoked - this is the compromise mitigation
+        _mockRepo.Verify(r => r.RevokeAllUserRefreshTokensAsync(user.UserId, It.IsAny<CancellationToken>()), Times.Once);
+
+        // IMPORTANT: No new tokens issued
+        _mockRepo.Verify(r => r.SaveRefreshTokenAsync(It.IsAny<RefreshToken>(), It.IsAny<CancellationToken>()), Times.Never);
+        _mockRepo.Verify(r => r.UpdateLastLoginAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    // IMPORTANT: TEST 24 - Expired refresh token -> UnauthorizedException
+    [Fact]
+    public async Task RefreshTokenAsync_WithExpiredToken_ThrowsUnauthorizedException()
+    {
+        // NOTE: Arrange
+        var request = new RefreshTokenRequestDto
+        {
+            RefreshToken = "expired_token"
+        };
+
+        var user = new AppUser
+        {
+            UserId = Guid.NewGuid(),
+            Email = "test@parishbell.lk",
+            IsActive = true,
+            AuthProvider = (short)AuthProvider.Email
+        };
+
+        // IMPORTANT: Token is not revoked but expired
+        var expiredToken = new RefreshToken
+        {
+            RefreshTokenId = Guid.NewGuid(),
+            UserId = user.UserId,
+            User = user,
+            TokenHash = "hashed_refresh",
+            ExpiresAt = DateTime.UtcNow.AddDays(-1), // IMPORTANT: Expired yesterday
+            IsRevoked = false
+        };
+
+        _mockRepo.Setup(r => r.GetRefreshTokenByHashAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(expiredToken);
+
+        // NOTE: Act & Assert
+        var exception = await Assert.ThrowsAsync<UnauthorizedException>(() => _authService.RefreshTokenAsync(request, "127.0.0.1"));
+        Assert.Equal(MessageCodes.AuthRefreshTokenExpired, exception.MessageCode);
+
+        // IMPORTANT: Expired tokens do NOT trigger all-session revocation - this isn't a reuse attack
+        _mockRepo.Verify(r => r.RevokeAllUserRefreshTokensAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+
+        // IMPORTANT: No tokens issued
+        _mockRepo.Verify(r => r.SaveRefreshTokenAsync(It.IsAny<RefreshToken>(), It.IsAny<CancellationToken>()), Times.Never);
+        _mockRepo.Verify(r => r.UpdateLastLoginAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    // IMPORTANT: TEST 25 - Refresh token belongs to inactive user -> UnauthorizedException
+    [Fact]
+    public async Task RefreshTokenAsync_WithInactiveUser_ThrowsUnauthorizedException()
+    {
+        // NOTE: Arrange
+        var request = new RefreshTokenRequestDto
+        {
+            RefreshToken = "valid_token"
+        };
+
+        // IMPORTANT: User is deactivated
+        var inactiveUser = new AppUser
+        {
+            UserId = Guid.NewGuid(),
+            Email = "inactive@parishbell.lk",
+            IsActive = false,
+            AuthProvider = (short)AuthProvider.Email
+        };
+
+        var storedToken = new RefreshToken
+        {
+            RefreshTokenId = Guid.NewGuid(),
+            UserId = inactiveUser.UserId,
+            User = inactiveUser,
+            TokenHash = "hashed_refresh",
+            ExpiresAt = DateTime.UtcNow.AddDays(15),
+            IsRevoked = false
+        };
+
+        _mockRepo.Setup(r => r.GetRefreshTokenByHashAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(storedToken);
+
+        // NOTE: Act & Assert
+        var exception = await Assert.ThrowsAsync<UnauthorizedException>(() => _authService.RefreshTokenAsync(request, "127.0.0.1"));
+        Assert.Equal(MessageCodes.AuthAccountInactive, exception.MessageCode);
+
+        // IMPORTANT: No tokens issued for inactive accounts
+        _mockRepo.Verify(r => r.SaveRefreshTokenAsync(It.IsAny<RefreshToken>(), It.IsAny<CancellationToken>()), Times.Never);
+        _mockRepo.Verify(r => r.UpdateLastLoginAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    // IMPORTANT: TEST 26 - Verify all rotation side effects on success
+    [Fact]
+    public async Task RefreshTokenAsync_OnSuccess_PerformsAllRotationSideEffects()
+    {
+        // NOTE: Arrange
+        var request = new RefreshTokenRequestDto
+        {
+            RefreshToken = "raw_refresh_token"
+        };
+
+        var user = new AppUser
+        {
+            UserId = Guid.NewGuid(),
+            Email = "test@parishbell.lk",
+            FullName = "Test User",
+            IsActive = true,
+            PreferredLanguage = _testLanguageId,
+            AuthProvider = (short)AuthProvider.Email
+        };
+
+        var storedToken = new RefreshToken
+        {
+            RefreshTokenId = Guid.NewGuid(),
+            UserId = user.UserId,
+            User = user,
+            TokenHash = "hashed_refresh",
+            ExpiresAt = DateTime.UtcNow.AddDays(15),
+            IsRevoked = false
+        };
+
+        _mockRepo.Setup(r => r.GetRefreshTokenByHashAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(storedToken);
+        _mockRepo.Setup(r => r.RevokeRefreshTokenAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+        _mockRepo.Setup(r => r.UpdateLastLoginAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+
+        // NOTE: Act
+        var result = await _authService.RefreshTokenAsync(request, "192.168.1.100");
+
+        // NOTE: Assert - verify ALL three side effects:
+
+        // NOTE: 1. Old token revoked
+        _mockRepo.Verify(r => r.RevokeRefreshTokenAsync(storedToken.RefreshTokenId, It.IsAny<CancellationToken>()), Times.Once);
+
+        // NOTE: 2. New refresh token saved with the IP address
+        _mockRepo.Verify(r => r.SaveRefreshTokenAsync(It.Is<RefreshToken>(rt =>
+            rt.UserId == user.UserId
+            && rt.CreatedByIp == "192.168.1.100"
+            && rt.IsRevoked == false
+            && rt.TokenHash == "hashed_refresh"
+        ), It.IsAny<CancellationToken>()), Times.Once);
+
+        // NOTE: 3. LastLoginAt updated
+        _mockRepo.Verify(r => r.UpdateLastLoginAsync(user.UserId, It.IsAny<CancellationToken>()), Times.Once);
+
+        // IMPORTANT: Result contains user info from the existing user
+        Assert.Equal(user.UserId, result.User.UserId);
+        Assert.Equal("test@parishbell.lk", result.User.Email);
+    }
+
     // NOTE: Helper to set up JWT mocks for tests
     private void SetupJwtMocks()
     {

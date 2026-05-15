@@ -16,4 +16,10 @@ public interface IAuthRepository
 
     // NOTE: Check if a user already exists with the given social provider + provider user id
     Task<AppUser?> GetUserByProviderAsync(AuthProvider provider, string providerUserId, CancellationToken ct = default);
+
+    // NOTE: New - Get user by email (used for login)
+    Task<AppUser?> GetUserByEmailAsync(string email, CancellationToken ct = default);
+
+    // NOTE: New - Update LastLoginAt timestamp on successful login
+    Task UpdateLastLoginAsync(Guid userId, CancellationToken ct = default);
 }

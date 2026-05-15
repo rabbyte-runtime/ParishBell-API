@@ -16,6 +16,8 @@ public static class MessageCodes
     public const string AuthSocialEmailConflict = "PB-15";
     public const string AuthRegisterSuccess = "PB-27";
     public const string AuthGoogleEmailNotVerified = "PB-29";
+    public const string AuthWrongProvider = "PB-30";
+    public const string AuthLoginSuccess = "PB-31";
 
     // NOTE: General
     public const string GeneralUnexpectedError = "PB-1";

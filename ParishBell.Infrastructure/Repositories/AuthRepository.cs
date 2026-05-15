@@ -32,4 +32,18 @@ public class AuthRepository(ParishBellDbContext db) : IAuthRepository
     // IMPORTANT: Used to detect if a Google/Apple user already exists
     public async Task<AppUser?> GetUserByProviderAsync(AuthProvider provider, string providerUserId, CancellationToken ct = default)
         => await _dbContext.AppUsers.AsNoTracking().FirstOrDefaultAsync(u => u.AuthProvider == (short)provider && u.AuthProviderId == providerUserId && u.IsActive, ct);
+
+    // NOTE: Update LastLoginAt on successful login
+    public async Task UpdateLastLoginAsync(Guid userId, CancellationToken ct = default)
+    {
+        var user = await _dbContext.AppUsers.FindAsync([userId], ct);
+        if (user is null) return;
+
+        user.LastLoginAt = DateTime.UtcNow;
+        await _dbContext.SaveChangesAsync(ct);
+    }
+
+    // NOTE: Get user by email (case-insensitive via ToLower)
+    // IMPORTANT: Returns null if user doesn't exist OR is inactive
+    public async Task<AppUser?> GetUserByEmailAsync(string email, CancellationToken ct = default) => await _dbContext.AppUsers.AsNoTracking().FirstOrDefaultAsync(u => u.Email == email.ToLower(), ct);
 }

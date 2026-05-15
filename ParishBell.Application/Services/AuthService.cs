@@ -173,4 +173,89 @@ public partial class AuthService(
             },
         };
     }
+
+    public async Task<AuthResponseDto> LoginAsync(LoginRequestDto request, string ipAddress, CancellationToken ct = default)
+    {
+        // NOTE: Conditional logic based on provider
+        var user = request.Provider switch
+        {
+            AuthProvider.Email => await LoginWithEmailAsync(request, ct),
+            AuthProvider.Google => await LoginWithSocialAsync(request, AuthProvider.Google, ct),
+            AuthProvider.Apple => throw new BadRequestException(MessageCodes.AuthUnsupportedProvider), // TODO: Implement Apple later
+            _ => throw new BadRequestException(MessageCodes.AuthUnsupportedProvider)
+        };
+
+        // IMPORTANT: Reject inactive accounts
+        if (!user.IsActive)
+            throw new UnauthorizedException(MessageCodes.AuthAccountInactive);
+
+        // NOTE: Update last login timestamp
+        await _authRepository.UpdateLastLoginAsync(user.UserId, ct);
+
+        // NOTE: Issue new tokens
+        return await IssueTokensAsync(user, ipAddress, ct);
+    }
+
+    private async Task<AppUser> LoginWithEmailAsync(LoginRequestDto request, CancellationToken ct)
+    {
+        // NOTE: Required fields for email login
+        if (string.IsNullOrWhiteSpace(request.Email))
+            throw new BadRequestException(MessageCodes.ValidationEmailRequired);
+
+        if (string.IsNullOrWhiteSpace(request.Password))
+            throw new BadRequestException(MessageCodes.ValidationPasswordRequired);
+
+        // NOTE: Look up user by email
+        var user = await _authRepository.GetUserByEmailAsync(request.Email, ct);
+
+        // IMPORTANT: Generic message - don't reveal whether email exists
+        if (user is null)
+            throw new UnauthorizedException(MessageCodes.AuthInvalidCredentials);
+
+        // IMPORTANT: User registered with social provider trying email login
+        // NOTE: Tell them which provider to use - small security trade-off for better UX
+        if (user.AuthProvider != (short)AuthProvider.Email)
+            throw new UnauthorizedException(MessageCodes.AuthWrongProvider);
+
+        // IMPORTANT: Verify password using BCrypt
+        if (string.IsNullOrEmpty(user.PasswordHash) || !_passwordHasher.Verify(request.Password, user.PasswordHash))
+            throw new UnauthorizedException(MessageCodes.AuthInvalidCredentials);
+
+        return user;
+    }
+
+    private async Task<AppUser> LoginWithSocialAsync(LoginRequestDto request, AuthProvider provider, CancellationToken ct)
+    {
+        // NOTE: ID token is required
+        if (string.IsNullOrWhiteSpace(request.IdToken))
+            throw new BadRequestException(MessageCodes.AuthInvalidSocialToken);
+
+        var validator = _externalAuthValidators.FirstOrDefault(v => v.Provider == provider)
+            ?? throw new BadRequestException(MessageCodes.AuthUnsupportedProvider);
+
+        // NOTE: Validate the ID token (signature, expiry, audience, email_verified)
+        var verifiedInfo = await validator.ValidateAsync(request.IdToken, ct);
+
+        // NOTE: Look up the user by social provider + provider user id
+        var user = await _authRepository.GetUserByProviderAsync(provider, verifiedInfo.ProviderUserId, ct);
+
+        // IMPORTANT: User exists for this Google account - return it
+        if (user is not null)
+            return user;
+
+        // NOTE: No social account exists - check if the email is registered with another provider
+        var existingByEmail = await _authRepository.GetUserByEmailAsync(verifiedInfo.Email, ct);
+        if (existingByEmail is not null)
+        {
+            // IMPORTANT: Same as register - reject if email is on email/password account
+            if (existingByEmail.AuthProvider == (short)AuthProvider.Email)
+                throw new ConflictException(MessageCodes.AuthSocialEmailConflict);
+
+            // IMPORTANT: Same email registered with a DIFFERENT social provider - tell user which
+            throw new UnauthorizedException(MessageCodes.AuthWrongProvider);
+        }
+
+        // IMPORTANT: User has not registered yet - require explicit registration
+        throw new UnauthorizedException(MessageCodes.AuthInvalidCredentials);
+    }
 }

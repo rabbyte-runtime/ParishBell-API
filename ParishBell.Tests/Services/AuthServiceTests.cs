@@ -1035,6 +1035,95 @@ public class AuthServiceTests
         Assert.Equal("test@parishbell.lk", result.User.Email);
     }
 
+    // NOTE: LOGOUT TESTS
+
+    // IMPORTANT: TEST 27 - Logout revokes the matching refresh token
+    [Fact]
+    public async Task LogoutAsync_WithValidToken_RevokesTheRefreshToken()
+    {
+        // NOTE: Arrange
+        var request = new LogoutRequestDto
+        {
+            RefreshToken = "raw_refresh_token"
+        };
+
+        // NOTE: An active, unrevoked refresh token in DB
+        var storedToken = new RefreshToken
+        {
+            RefreshTokenId = Guid.NewGuid(),
+            UserId = Guid.NewGuid(),
+            TokenHash = "hashed_refresh", // IMPORTANT: Matches what _mockJwt.HashToken returns
+            ExpiresAt = DateTime.UtcNow.AddDays(15),
+            IsRevoked = false
+        };
+
+        _mockRepo.Setup(r => r.GetRefreshTokenByHashAsync("hashed_refresh", It.IsAny<CancellationToken>())).ReturnsAsync(storedToken);
+        _mockRepo.Setup(r => r.RevokeRefreshTokenAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+
+        // NOTE: Act
+        await _authService.LogoutAsync(request);
+
+        // IMPORTANT: This specific refresh token was revoked
+        _mockRepo.Verify(r => r.RevokeRefreshTokenAsync(storedToken.RefreshTokenId, It.IsAny<CancellationToken>()), Times.Once);
+
+        // IMPORTANT: Other user's sessions are NOT touched - only this device signs out
+        _mockRepo.Verify(r => r.RevokeAllUserRefreshTokensAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    // IMPORTANT: TEST 28 - Logout with non existenting token is idempotent (no error)
+    [Fact]
+    public async Task LogoutAsync_WithUnknownToken_DoesNotThrow()
+    {
+        // NOTE: Arrange
+        var request = new LogoutRequestDto
+        {
+            RefreshToken = "unknown_token"
+        };
+
+        // IMPORTANT: Token doesn't exist in DB
+        _mockRepo.Setup(r => r.GetRefreshTokenByHashAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync((RefreshToken?)null);
+
+        // NOTE: Act - should NOT throw
+        await _authService.LogoutAsync(request);
+
+        // IMPORTANT: No revocation attempts - silent return
+        _mockRepo.Verify(r => r.RevokeRefreshTokenAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+        _mockRepo.Verify(r => r.RevokeAllUserRefreshTokensAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    // IMPORTANT: TEST 29 - Logout with already revoked token is idempotent (no error)
+    [Fact]
+    public async Task LogoutAsync_WithAlreadyRevokedToken_DoesNotThrow()
+    {
+        // NOTE: Arrange
+        var request = new LogoutRequestDto
+        {
+            RefreshToken = "already_revoked_token"
+        };
+
+        // IMPORTANT: Token exists but was already revoked
+        var revokedToken = new RefreshToken
+        {
+            RefreshTokenId = Guid.NewGuid(),
+            UserId = Guid.NewGuid(),
+            TokenHash = "hashed_refresh",
+            ExpiresAt = DateTime.UtcNow.AddDays(15),
+            IsRevoked = true, // IMPORTANT: Already revoked
+            RevokedAt = DateTime.UtcNow.AddMinutes(-30)
+        };
+
+        _mockRepo.Setup(r => r.GetRefreshTokenByHashAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(revokedToken);
+
+        // NOTE: Act - should NOT throw
+        await _authService.LogoutAsync(request);
+
+        // IMPORTANT: We don't re-revoke an already-revoked token (no double work)
+        _mockRepo.Verify(r => r.RevokeRefreshTokenAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+
+        // IMPORTANT: We also don't trigger all-session revocation - logout is NOT a reuse attack signal
+        _mockRepo.Verify(r => r.RevokeAllUserRefreshTokensAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
     // NOTE: Helper to set up JWT mocks for tests
     private void SetupJwtMocks()
     {

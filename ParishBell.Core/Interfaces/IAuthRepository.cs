@@ -22,4 +22,13 @@ public interface IAuthRepository
 
     // NOTE: New - Update LastLoginAt timestamp on successful login
     Task UpdateLastLoginAsync(Guid userId, CancellationToken ct = default);
+
+    // NOTE: New - Find a refresh token by its hash (used for refresh + logout)
+    Task<RefreshToken?> GetRefreshTokenByHashAsync(string tokenHash, CancellationToken ct = default);
+
+    // NOTE: New - Revoke all refresh tokens for a user (used on token reuse detection)
+    Task RevokeAllUserRefreshTokensAsync(Guid userId, CancellationToken ct = default);
+
+    // NOTE: New - Revoke a single refresh token (logout this device)
+    Task RevokeRefreshTokenAsync(Guid refreshTokenId, CancellationToken ct = default);
 }

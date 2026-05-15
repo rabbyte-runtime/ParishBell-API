@@ -261,4 +261,41 @@ public partial class AuthService(
         // IMPORTANT: User has not registered yet - require explicit registration
         throw new UnauthorizedException(MessageCodes.AuthInvalidCredentials);
     }
+
+    // NOTE: Refresh token flow - issues new access + refresh tokens
+    public async Task<AuthResponseDto> RefreshTokenAsync(RefreshTokenRequestDto request, string ipAddress, CancellationToken ct = default)
+    {
+        // NOTE: Hash the incoming token to look it up
+        var tokenHash = _jwtTokenService.HashToken(request.RefreshToken);
+        var storedToken = await _authRepository.GetRefreshTokenByHashAsync(tokenHash, ct) ?? throw new UnauthorizedException(MessageCodes.AuthInvalidRefreshToken);
+
+        // IMPORTANT: Token reuse detection
+        // NOTE: A revoked token being presented again likely means it was stolen
+        // IMPORTANT: Revoke all tokens for this user as a compromise mitigation
+        if (storedToken.IsRevoked)
+        {
+            await _authRepository.RevokeAllUserRefreshTokensAsync(storedToken.UserId, ct);
+            throw new UnauthorizedException(MessageCodes.AuthRefreshTokenReuse);
+        }
+
+        // NOTE: Check expiry
+        if (storedToken.ExpiresAt < DateTime.UtcNow)
+            throw new UnauthorizedException(MessageCodes.AuthRefreshTokenExpired);
+
+        // NOTE: Verify the user is still active
+        var user = storedToken.User
+            ?? throw new UnauthorizedException(MessageCodes.AuthInvalidRefreshToken);
+
+        if (!user.IsActive)
+            throw new UnauthorizedException(MessageCodes.AuthAccountInactive);
+
+        // IMPORTANT: Rotate - revoke the old token before issuing new one
+        await _authRepository.RevokeRefreshTokenAsync(storedToken.RefreshTokenId, ct);
+
+        // NOTE: Update last login timestamp
+        await _authRepository.UpdateLastLoginAsync(user.UserId, ct);
+
+        // NOTE: Issue new tokens
+        return await IssueTokensAsync(user, ipAddress, ct);
+    }
 }

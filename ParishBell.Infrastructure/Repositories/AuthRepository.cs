@@ -46,4 +46,34 @@ public class AuthRepository(ParishBellDbContext db) : IAuthRepository
     // NOTE: Get user by email (case-insensitive via ToLower)
     // IMPORTANT: Returns null if user doesn't exist OR is inactive
     public async Task<AppUser?> GetUserByEmailAsync(string email, CancellationToken ct = default) => await _dbContext.AppUsers.AsNoTracking().FirstOrDefaultAsync(u => u.Email == email.ToLower(), ct);
+
+    // NOTE: Get refresh token by its SHA-256 hash
+    // IMPORTANT: Includes the User to avoid N+1 query during refresh
+    public async Task<RefreshToken?> GetRefreshTokenByHashAsync(string tokenHash, CancellationToken ct = default) => await _dbContext.RefreshTokens.Include(rt => rt.User).FirstOrDefaultAsync(rt => rt.TokenHash == tokenHash, ct);
+
+    // NOTE: Revoke all refresh tokens for a user (on token reuse / logout-everywhere)
+    // IMPORTANT: Only revokes currently active ones (skip already revoked)
+    public async Task RevokeAllUserRefreshTokensAsync(Guid userId, CancellationToken ct = default)
+    {
+        var tokens = await _dbContext.RefreshTokens.Where(rt => rt.UserId == userId && !rt.IsRevoked).ToListAsync(ct);
+
+        foreach (var token in tokens)
+        {
+            token.IsRevoked = true;
+            token.RevokedAt = DateTime.UtcNow;
+        }
+
+        await _dbContext.SaveChangesAsync(ct);
+    }
+
+    // NOTE: Revoke a single refresh token
+    public async Task RevokeRefreshTokenAsync(Guid refreshTokenId, CancellationToken ct = default)
+    {
+        var token = await _dbContext.RefreshTokens.FindAsync([refreshTokenId], ct);
+        if (token is null) return;
+
+        token.IsRevoked = true;
+        token.RevokedAt = DateTime.UtcNow;
+        await _dbContext.SaveChangesAsync(ct);
+    }
 }

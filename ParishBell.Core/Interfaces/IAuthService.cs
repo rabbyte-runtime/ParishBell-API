@@ -9,4 +9,7 @@ public interface IAuthService
 
     // NOTE: Logins a user using email/password or social provider
     Task<AuthResponseDto> LoginAsync(LoginRequestDto request, string ipAddress, CancellationToken ct = default);
+
+    // NOTE: Issues new access + refresh tokens using a valid refresh token
+    Task<AuthResponseDto> RefreshTokenAsync(RefreshTokenRequestDto request, string ipAddress, CancellationToken ct = default);
 }

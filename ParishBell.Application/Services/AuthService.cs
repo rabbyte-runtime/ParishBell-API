@@ -174,6 +174,7 @@ public partial class AuthService(
         };
     }
 
+    // NOTE: Login flow supporting both email/password and social providers
     public async Task<AuthResponseDto> LoginAsync(LoginRequestDto request, string ipAddress, CancellationToken ct = default)
     {
         // NOTE: Conditional logic based on provider
@@ -196,6 +197,7 @@ public partial class AuthService(
         return await IssueTokensAsync(user, ipAddress, ct);
     }
 
+    // NOTE: Email/password login flow
     private async Task<AppUser> LoginWithEmailAsync(LoginRequestDto request, CancellationToken ct)
     {
         // NOTE: Required fields for email login
@@ -224,6 +226,7 @@ public partial class AuthService(
         return user;
     }
 
+    // NOTE: Social login flow (Google for now)
     private async Task<AppUser> LoginWithSocialAsync(LoginRequestDto request, AuthProvider provider, CancellationToken ct)
     {
         // NOTE: ID token is required

@@ -298,4 +298,19 @@ public partial class AuthService(
         // NOTE: Issue new tokens
         return await IssueTokensAsync(user, ipAddress, ct);
     }
+
+    public async Task LogoutAsync(LogoutRequestDto request, CancellationToken ct = default)
+    {
+        // NOTE: Hash the token to look it up
+        var tokenHash = _jwtTokenService.HashToken(request.RefreshToken);
+
+        var storedToken = await _authRepository.GetRefreshTokenByHashAsync(tokenHash, ct);
+
+        // IMPORTANT: Don't reveal whether token exists
+        // NOTE: If token is invalid or already revoked, just return success silently
+        if (storedToken is null || storedToken.IsRevoked) return;
+
+        // NOTE: Revoke this single refresh token
+        await _authRepository.RevokeRefreshTokenAsync(storedToken.RefreshTokenId, ct);
+    }
 }

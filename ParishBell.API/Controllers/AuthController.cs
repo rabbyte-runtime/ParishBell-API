@@ -52,6 +52,22 @@ public class AuthController(IAuthService authService, IMessageCache messages) : 
         return Ok(response);
     }
 
+    // NOTE: POST - /api/v1/auth/logout
+    [HttpPost("logout")]
+    public async Task<IActionResult> Logout([FromBody] LogoutRequestDto request, CancellationToken ct)
+    {
+        await _authService.LogoutAsync(request, ct);
+
+        var response = ApiResponseBuilder.Build<object?>(
+            HttpContext,
+            _messages,
+            StatusCodes.Status200OK,
+            MessageCodes.AuthLogoutSuccess,
+            null);
+
+        return Ok(response);
+    }
+
     // NOTE: Get client IP address
     private string GetClientIpAddress()
     {

@@ -12,4 +12,7 @@ public interface IAuthService
 
     // NOTE: Issues new access + refresh tokens using a valid refresh token
     Task<AuthResponseDto> RefreshTokenAsync(RefreshTokenRequestDto request, string ipAddress, CancellationToken ct = default);
+
+    // NOTE: Logs out a user by revoking the provided refresh token
+    Task LogoutAsync(LogoutRequestDto request, CancellationToken ct = default);
 }

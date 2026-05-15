@@ -19,6 +19,7 @@ public static class MessageCodes
     public const string AuthWrongProvider = "PB-30";
     public const string AuthLoginSuccess = "PB-31";
     public const string AuthRefreshSuccess = "PB-32";
+    public const string AuthLogoutSuccess = "PB-33";
 
     // NOTE: General
     public const string GeneralUnexpectedError = "PB-1";

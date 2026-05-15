@@ -37,7 +37,7 @@ public class AuthServiceTests
         SetupJwtMocks();
     }
 
-    // NOTE: EMAIL PROVIDER TESTS
+    // NOTE: REGISTER TESTS
 
     // IMPORTANT: TEST 1 - Valid email registration succeeds
     [Fact]
@@ -189,8 +189,6 @@ public class AuthServiceTests
         // IMPORTANT: Verify CreateUserAsync was called only once
         _mockRepo.Verify(r => r.CreateUserAsync(It.Is<AppUser>(u => u.Email == "mixedcase@parishbell.lk"), It.IsAny<CancellationToken>()), Times.Once);
     }
-
-    // NOTE: GOOGLE PROVIDER TESTS
 
     // IMPORTANT: TEST 6 - Valid Google registration succeeds
     [Fact]
@@ -414,8 +412,6 @@ public class AuthServiceTests
         _mockRepo.Verify(r => r.CreateUserAsync(It.Is<AppUser>(u => u.FullName == "Rabbyte"), It.IsAny<CancellationToken>()), Times.Once);
     }
 
-    // NOTE: UNSUPPORTED PROVIDER TEST
-
     // IMPORTANT: TEST 12 - Apple provider not yet implemented -> BadRequestException
     [Fact]
     public async Task RegisterAsync_Apple_NotYetImplemented_ThrowsBadRequestException()
@@ -435,6 +431,332 @@ public class AuthServiceTests
         // IMPORTANT: Verify no downstream calls were made
         _mockRepo.Verify(r => r.CreateUserAsync(It.IsAny<AppUser>(), It.IsAny<CancellationToken>()), Times.Never);
         _mockRepo.Verify(r => r.GetUserByProviderAsync(It.IsAny<AuthProvider>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    // NOTE: LOGIN TESTS
+
+    // IMPORTANT: TEST 13 - Valid email login succeeds
+    [Fact]
+    public async Task LoginAsync_Email_WithValidCredentials_ReturnsAuthResponse()
+    {
+        // NOTE: Arrange
+        var request = new LoginRequestDto
+        {
+            Email = "test@parishbell.lk",
+            Password = "Password123",
+            Provider = AuthProvider.Email
+        };
+
+        // NOTE: Mock user exists with email provider
+        var existingUser = new AppUser
+        {
+            UserId = Guid.NewGuid(),
+            Email = "test@parishbell.lk",
+            FullName = "Test User",
+            PasswordHash = "hashed_password",
+            AuthProvider = (short)AuthProvider.Email,
+            IsActive = true,
+            PreferredLanguage = _testLanguageId
+        };
+
+        _mockRepo.Setup(r => r.GetUserByEmailAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(existingUser);
+
+        // NOTE: Mock password verification succeeds
+        _mockHasher.Setup(h => h.Verify("Password123", "hashed_password")).Returns(true);
+
+        // NOTE: Mock last login update
+        _mockRepo.Setup(r => r.UpdateLastLoginAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+
+        // NOTE: Act
+        var result = await _authService.LoginAsync(request, "127.0.0.1");
+
+        // NOTE: Assert
+        Assert.NotNull(result);
+        Assert.Equal("access_token", result.AccessToken);
+        Assert.Equal("refresh_token", result.RefreshToken);
+        Assert.Equal("test@parishbell.lk", result.User.Email);
+
+        // IMPORTANT: Verify password verify was called with correct args
+        _mockHasher.Verify(h => h.Verify("Password123", "hashed_password"), Times.Once);
+
+        // IMPORTANT: Verify LastLoginAt was updated
+        _mockRepo.Verify(r => r.UpdateLastLoginAsync(existingUser.UserId, It.IsAny<CancellationToken>()), Times.Once);
+
+        // IMPORTANT: Verify a new refresh token was saved
+        _mockRepo.Verify(r => r.SaveRefreshTokenAsync(It.IsAny<RefreshToken>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    // IMPORTANT: TEST 14 - Wrong password -> UnauthorizedException
+    [Fact]
+    public async Task LoginAsync_Email_WithWrongPassword_ThrowsUnauthorizedException()
+    {
+        // NOTE: Arrange
+        var request = new LoginRequestDto
+        {
+            Email = "test@parishbell.lk",
+            Password = "WrongPassword",
+            Provider = AuthProvider.Email
+        };
+
+        var existingUser = new AppUser
+        {
+            UserId = Guid.NewGuid(),
+            Email = "test@parishbell.lk",
+            PasswordHash = "hashed_password",
+            AuthProvider = (short)AuthProvider.Email,
+            IsActive = true
+        };
+
+        _mockRepo.Setup(r => r.GetUserByEmailAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(existingUser);
+
+        // IMPORTANT: Password verification fails
+        _mockHasher.Setup(h => h.Verify(It.IsAny<string>(), It.IsAny<string>())).Returns(false);
+
+        // NOTE: Act & Assert
+        var exception = await Assert.ThrowsAsync<UnauthorizedException>(() => _authService.LoginAsync(request, "127.0.0.1"));
+        Assert.Equal(MessageCodes.AuthInvalidCredentials, exception.MessageCode);
+
+        // IMPORTANT: No tokens issued, no last-login update
+        _mockRepo.Verify(r => r.SaveRefreshTokenAsync(It.IsAny<RefreshToken>(), It.IsAny<CancellationToken>()), Times.Never);
+        _mockRepo.Verify(r => r.UpdateLastLoginAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    // IMPORTANT: TEST 15 - Non-existent email -> UnauthorizedException (same as wrong password - security)
+    [Fact]
+    public async Task LoginAsync_Email_WithNonExistentEmail_ThrowsUnauthorizedException()
+    {
+        // NOTE: Arrange
+        var request = new LoginRequestDto
+        {
+            Email = "nonexistent@parishbell.lk",
+            Password = "Password123",
+            Provider = AuthProvider.Email
+        };
+
+        // IMPORTANT: User not found
+        _mockRepo.Setup(r => r.GetUserByEmailAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync((AppUser?)null);
+
+        // NOTE: Act & Assert
+        var exception = await Assert.ThrowsAsync<UnauthorizedException>(() => _authService.LoginAsync(request, "127.0.0.1"));
+        Assert.Equal(MessageCodes.AuthInvalidCredentials, exception.MessageCode);
+
+        // IMPORTANT: Password verify must never be called - prevents timing attacks revealing email existence
+        _mockHasher.Verify(h => h.Verify(It.IsAny<string>(), It.IsAny<string>()), Times.Never);
+
+        // IMPORTANT: No tokens issued
+        _mockRepo.Verify(r => r.SaveRefreshTokenAsync(It.IsAny<RefreshToken>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    // IMPORTANT: TEST 16 - Email login on Google-registered account -> UnauthorizedException
+    [Fact]
+    public async Task LoginAsync_Email_OnGoogleAccount_ThrowsWrongProviderException()
+    {
+        // NOTE: Arrange
+        var request = new LoginRequestDto
+        {
+            Email = "rabbyte@gmail.com",
+            Password = "Password123",
+            Provider = AuthProvider.Email
+        };
+
+        // IMPORTANT: User exists but registered via Google
+        var googleUser = new AppUser
+        {
+            UserId = Guid.NewGuid(),
+            Email = "rabbyte@gmail.com",
+            PasswordHash = null, // NOTE: Google users have no password
+            AuthProvider = (short)AuthProvider.Google,
+            AuthProviderId = "google_user_id",
+            IsActive = true
+        };
+
+        _mockRepo.Setup(r => r.GetUserByEmailAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(googleUser);
+
+        // NOTE: Act & Assert
+        var exception = await Assert.ThrowsAsync<UnauthorizedException>(() => _authService.LoginAsync(request, "127.0.0.1"));
+        Assert.Equal(MessageCodes.AuthWrongProvider, exception.MessageCode);
+
+        // IMPORTANT: Password verify must NEVER be called
+        _mockHasher.Verify(h => h.Verify(It.IsAny<string>(), It.IsAny<string>()), Times.Never);
+
+        // IMPORTANT: No tokens issued
+        _mockRepo.Verify(r => r.SaveRefreshTokenAsync(It.IsAny<RefreshToken>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    // IMPORTANT: TEST 17 - Valid Google login (existing user) succeeds
+    [Fact]
+    public async Task LoginAsync_Google_WithExistingUser_ReturnsAuthResponse()
+    {
+        // NOTE: Arrange
+        var request = new LoginRequestDto
+        {
+            IdToken = "valid_google_id_token",
+            Provider = AuthProvider.Google
+        };
+
+        // NOTE: Google validator returns verified info
+        var verifiedInfo = new ExternalAuthResult
+        {
+            ProviderUserId = "google_user_12345",
+            Email = "rabbyte@gmail.com",
+            FullName = "Rabbyte",
+            EmailVerified = true
+        };
+
+        _mockGoogleValidator.Setup(v => v.ValidateAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(verifiedInfo);
+
+        // NOTE: User exists in DB for this Google account
+        var existingUser = new AppUser
+        {
+            UserId = Guid.NewGuid(),
+            Email = "rabbyte@gmail.com",
+            FullName = "Rabbyte",
+            AuthProvider = (short)AuthProvider.Google,
+            AuthProviderId = "google_user_12345",
+            PasswordHash = null,
+            IsActive = true,
+            PreferredLanguage = _testLanguageId
+        };
+
+        _mockRepo.Setup(r => r.GetUserByProviderAsync(AuthProvider.Google, "google_user_12345", It.IsAny<CancellationToken>())).ReturnsAsync(existingUser);
+
+        // NOTE: Mock last login update
+        _mockRepo.Setup(r => r.UpdateLastLoginAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+
+        // NOTE: Act
+        var result = await _authService.LoginAsync(request, "127.0.0.1");
+
+        // NOTE: Assert
+        Assert.NotNull(result);
+        Assert.Equal("rabbyte@gmail.com", result.User.Email);
+
+        // IMPORTANT: Email lookup must NOT happen - we found user by provider ID already
+        _mockRepo.Verify(r => r.GetUserByEmailAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+
+        // IMPORTANT: LastLoginAt updated
+        _mockRepo.Verify(r => r.UpdateLastLoginAsync(existingUser.UserId, It.IsAny<CancellationToken>()), Times.Once);
+
+        // IMPORTANT: Refresh token saved
+        _mockRepo.Verify(r => r.SaveRefreshTokenAsync(It.IsAny<RefreshToken>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    // IMPORTANT: TEST 18 - Google login on email/password account -> ConflictException
+    [Fact]
+    public async Task LoginAsync_Google_OnEmailAccount_ThrowsConflictException()
+    {
+        // NOTE: Arrange
+        var request = new LoginRequestDto
+        {
+            IdToken = "valid_google_id_token",
+            Provider = AuthProvider.Google
+        };
+
+        // NOTE: Google validator returns verified info
+        var verifiedInfo = new ExternalAuthResult
+        {
+            ProviderUserId = "google_user_99999",
+            Email = "registered@parishbell.lk",
+            FullName = "Registered User",
+            EmailVerified = true
+        };
+
+        _mockGoogleValidator.Setup(v => v.ValidateAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(verifiedInfo);
+
+        // NOTE: No user found for this Google account
+        _mockRepo.Setup(r => r.GetUserByProviderAsync(AuthProvider.Google, It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync((AppUser?)null);
+
+        // IMPORTANT: But email exists, registered with Email provider
+        var emailUser = new AppUser
+        {
+            UserId = Guid.NewGuid(),
+            Email = "registered@parishbell.lk",
+            AuthProvider = (short)AuthProvider.Email,
+            PasswordHash = "hashed",
+            IsActive = true
+        };
+
+        _mockRepo.Setup(r => r.GetUserByEmailAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(emailUser);
+
+        // NOTE: Act & Assert
+        var exception = await Assert.ThrowsAsync<ConflictException>(() => _authService.LoginAsync(request, "127.0.0.1"));
+        Assert.Equal(MessageCodes.AuthSocialEmailConflict, exception.MessageCode);
+
+        // IMPORTANT: No tokens issued
+        _mockRepo.Verify(r => r.SaveRefreshTokenAsync(It.IsAny<RefreshToken>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    // IMPORTANT: TEST 19 - Google login with no account at all -> UnauthorizedException
+    [Fact]
+    public async Task LoginAsync_Google_NoAccountExists_ThrowsUnauthorizedException()
+    {
+        // NOTE: Arrange
+        var request = new LoginRequestDto
+        {
+            IdToken = "valid_google_id_token",
+            Provider = AuthProvider.Google
+        };
+
+        // NOTE: Google validator returns verified info
+        var verifiedInfo = new ExternalAuthResult
+        {
+            ProviderUserId = "google_user_brand_new",
+            Email = "brandnew@gmail.com",
+            FullName = "Brand New User",
+            EmailVerified = true
+        };
+
+        _mockGoogleValidator.Setup(v => v.ValidateAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(verifiedInfo);
+
+        // IMPORTANT: No user found for this Google account
+        _mockRepo.Setup(r => r.GetUserByProviderAsync(It.IsAny<AuthProvider>(), It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync((AppUser?)null);
+
+        // IMPORTANT: No user found by email either
+        _mockRepo.Setup(r => r.GetUserByEmailAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync((AppUser?)null);
+
+        // NOTE: Act & Assert
+        var exception = await Assert.ThrowsAsync<UnauthorizedException>(() => _authService.LoginAsync(request, "127.0.0.1"));
+        Assert.Equal(MessageCodes.AuthInvalidCredentials, exception.MessageCode);
+
+        // IMPORTANT: No tokens issued - user must register first
+        _mockRepo.Verify(r => r.SaveRefreshTokenAsync(It.IsAny<RefreshToken>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    // IMPORTANT: TEST 20 - Inactive user tries to login -> UnauthorizedException
+    [Fact]
+    public async Task LoginAsync_InactiveUser_ThrowsUnauthorizedException()
+    {
+        // NOTE: Arrange
+        var request = new LoginRequestDto
+        {
+            Email = "inactive@parishbell.lk",
+            Password = "Password123",
+            Provider = AuthProvider.Email
+        };
+
+        // IMPORTANT: User found but inactive
+        var inactiveUser = new AppUser
+        {
+            UserId = Guid.NewGuid(),
+            Email = "inactive@parishbell.lk",
+            PasswordHash = "hashed_password",
+            AuthProvider = (short)AuthProvider.Email,
+            IsActive = false  // IMPORTANT: Account is deactivated
+        };
+
+        _mockRepo.Setup(r => r.GetUserByEmailAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(inactiveUser);
+
+        // NOTE: Password verification succeeds - we want to test the IsActive check, not the password
+        _mockHasher.Setup(h => h.Verify(It.IsAny<string>(), It.IsAny<string>())).Returns(true);
+
+        // NOTE: Act & Assert
+        var exception = await Assert.ThrowsAsync<UnauthorizedException>(() => _authService.LoginAsync(request, "127.0.0.1"));
+        Assert.Equal(MessageCodes.AuthAccountInactive, exception.MessageCode);
+
+        // IMPORTANT: LastLoginAt must NOT update for inactive accounts
+        _mockRepo.Verify(r => r.UpdateLastLoginAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+
+        // IMPORTANT: No tokens issued
+        _mockRepo.Verify(r => r.SaveRefreshTokenAsync(It.IsAny<RefreshToken>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     // NOTE: Helper to set up JWT mocks for tests

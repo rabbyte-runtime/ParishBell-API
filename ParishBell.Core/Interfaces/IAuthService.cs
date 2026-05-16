@@ -19,4 +19,6 @@ public interface IAuthService
     // NOTE: Initiate password reset - sends code via email (always returns 200, silent success)
     Task ForgotPasswordAsync(ForgotPasswordRequestDto request, string ipAddress, CancellationToken ct = default);
 
+    // NOTE: Verify code and update password
+    Task ResetPasswordAsync(ResetPasswordRequestDto request, CancellationToken ct = default);
 }

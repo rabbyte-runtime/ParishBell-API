@@ -62,6 +62,9 @@ public partial class AppUser
     [InverseProperty("User")]
     public virtual ICollection<NotificationsLog> NotificationsLogs { get; set; } = new List<NotificationsLog>();
 
+    [InverseProperty("User")]
+    public virtual ICollection<PasswordResetToken> PasswordResetTokens { get; set; } = new List<PasswordResetToken>();
+
     [ForeignKey("PreferredLanguage")]
     [InverseProperty("AppUsers")]
     public virtual Language PreferredLanguageNavigation { get; set; } = null!;

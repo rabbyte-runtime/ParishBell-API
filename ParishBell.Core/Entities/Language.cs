@@ -58,4 +58,7 @@ public partial class Language
 
     [InverseProperty("Language")]
     public virtual ICollection<MassScheduleTranslation> MassScheduleTranslations { get; set; } = new List<MassScheduleTranslation>();
+
+    [InverseProperty("Language")]
+    public virtual ICollection<MessageTranslation> MessageTranslations { get; set; } = new List<MessageTranslation>();
 }

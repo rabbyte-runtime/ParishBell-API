@@ -24,10 +24,11 @@ public partial class MessageTranslation
     [Column("message")]
     public string Message { get; set; } = null!;
 
+    [ForeignKey("LanguageId")]
+    [InverseProperty("MessageTranslations")]
+    public virtual Language Language { get; set; } = null!;
+
     [ForeignKey("MessageId")]
     [InverseProperty("MessageTranslations")]
     public virtual Message MessageNavigation { get; set; } = null!;
-
-    [ForeignKey("LanguageId")]
-    public virtual Language? Language { get; set; }
 }

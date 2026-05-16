@@ -6,4 +6,13 @@ public interface IAuthService
 {
     // NOTE: Registers a new mobile app user
     Task<AuthResponseDto> RegisterAsync(RegisterRequestDto request, string ipAddress, CancellationToken ct = default);
+
+    // NOTE: Logins a user using email/password or social provider
+    Task<AuthResponseDto> LoginAsync(LoginRequestDto request, string ipAddress, CancellationToken ct = default);
+
+    // NOTE: Issues new access + refresh tokens using a valid refresh token
+    Task<AuthResponseDto> RefreshTokenAsync(RefreshTokenRequestDto request, string ipAddress, CancellationToken ct = default);
+
+    // NOTE: Logs out a user by revoking the provided refresh token
+    Task LogoutAsync(LogoutRequestDto request, CancellationToken ct = default);
 }

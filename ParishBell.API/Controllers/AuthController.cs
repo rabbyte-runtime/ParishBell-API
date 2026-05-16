@@ -25,6 +25,49 @@ public class AuthController(IAuthService authService, IMessageCache messages) : 
         return StatusCode(StatusCodes.Status201Created, response);
     }
 
+    // NOTE: POST - /api/v1/auth/login
+    [HttpPost("login")]
+    public async Task<IActionResult> Login([FromBody] LoginRequestDto request, CancellationToken ct)
+    {
+        var ipAddress = GetClientIpAddress();
+        var result = await _authService.LoginAsync(request, ipAddress, ct);
+        var response = ApiResponseBuilder.Build(HttpContext, _messages, StatusCodes.Status200OK, MessageCodes.AuthLoginSuccess, result);
+        return StatusCode(StatusCodes.Status200OK, response);
+    }
+
+    // NOTE: POST - /api/v1/auth/refresh-token
+    [HttpPost("refresh-token")]
+    public async Task<IActionResult> Refresh([FromBody] RefreshTokenRequestDto request, CancellationToken ct)
+    {
+        var ipAddress = GetClientIpAddress();
+        var result = await _authService.RefreshTokenAsync(request, ipAddress, ct);
+
+        var response = ApiResponseBuilder.Build(
+            HttpContext,
+            _messages,
+            StatusCodes.Status200OK,
+            MessageCodes.AuthRefreshSuccess,
+            result);
+
+        return Ok(response);
+    }
+
+    // NOTE: POST - /api/v1/auth/logout
+    [HttpPost("logout")]
+    public async Task<IActionResult> Logout([FromBody] LogoutRequestDto request, CancellationToken ct)
+    {
+        await _authService.LogoutAsync(request, ct);
+
+        var response = ApiResponseBuilder.Build<object?>(
+            HttpContext,
+            _messages,
+            StatusCodes.Status200OK,
+            MessageCodes.AuthLogoutSuccess,
+            null);
+
+        return Ok(response);
+    }
+
     // NOTE: Get client IP address
     private string GetClientIpAddress()
     {

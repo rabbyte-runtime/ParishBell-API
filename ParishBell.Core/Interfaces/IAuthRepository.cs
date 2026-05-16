@@ -1,4 +1,5 @@
 using ParishBell.Core.Entities;
+using ParishBell.Core.Enums;
 
 namespace ParishBell.Core.Interfaces;
 
@@ -12,4 +13,22 @@ public interface IAuthRepository
 
     // NOTE: Saves a given refresh token
     Task SaveRefreshTokenAsync(RefreshToken token, CancellationToken ct = default);
+
+    // NOTE: Check if a user already exists with the given social provider + provider user id
+    Task<AppUser?> GetUserByProviderAsync(AuthProvider provider, string providerUserId, CancellationToken ct = default);
+
+    // NOTE: New - Get user by email (used for login)
+    Task<AppUser?> GetUserByEmailAsync(string email, CancellationToken ct = default);
+
+    // NOTE: New - Update LastLoginAt timestamp on successful login
+    Task UpdateLastLoginAsync(Guid userId, CancellationToken ct = default);
+
+    // NOTE: New - Find a refresh token by its hash (used for refresh + logout)
+    Task<RefreshToken?> GetRefreshTokenByHashAsync(string tokenHash, CancellationToken ct = default);
+
+    // NOTE: New - Revoke all refresh tokens for a user (used on token reuse detection)
+    Task RevokeAllUserRefreshTokensAsync(Guid userId, CancellationToken ct = default);
+
+    // NOTE: New - Revoke a single refresh token (logout this device)
+    Task RevokeRefreshTokenAsync(Guid refreshTokenId, CancellationToken ct = default);
 }

@@ -46,9 +46,15 @@ public partial class ParishBellDbContext : DbContext
 
     public virtual DbSet<MassScheduleTranslation> MassScheduleTranslations { get; set; }
 
+    public virtual DbSet<Message> Messages { get; set; }
+
+    public virtual DbSet<MessageTranslation> MessageTranslations { get; set; }
+
     public virtual DbSet<NotificationsLog> NotificationsLogs { get; set; }
 
     public virtual DbSet<OnboardingRequest> OnboardingRequests { get; set; }
+
+    public virtual DbSet<PasswordResetToken> PasswordResetTokens { get; set; }
 
     public virtual DbSet<RefreshToken> RefreshTokens { get; set; }
 
@@ -57,10 +63,6 @@ public partial class ParishBellDbContext : DbContext
     public virtual DbSet<UserFollowedLocation> UserFollowedLocations { get; set; }
 
     public virtual DbSet<UserMassReminder> UserMassReminders { get; set; }
-
-    public virtual DbSet<Message> Messages { get; set; }
-
-    public virtual DbSet<MessageTranslation> MessageTranslations { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -366,6 +368,27 @@ public partial class ParishBellDbContext : DbContext
             entity.HasOne(d => d.Schedule).WithMany(p => p.MassScheduleTranslations).HasConstraintName("fk_mst_schedule");
         });
 
+        modelBuilder.Entity<Message>(entity =>
+        {
+            entity.HasKey(e => e.MessageId).HasName("messages_pkey");
+
+            entity.Property(e => e.MessageId).HasDefaultValueSql("gen_random_uuid()");
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("now()");
+        });
+
+        modelBuilder.Entity<MessageTranslation>(entity =>
+        {
+            entity.HasKey(e => e.TranslationId).HasName("message_translations_pkey");
+
+            entity.Property(e => e.TranslationId).HasDefaultValueSql("gen_random_uuid()");
+
+            entity.HasOne(d => d.Language).WithMany(p => p.MessageTranslations)
+                .OnDelete(DeleteBehavior.Restrict)
+                .HasConstraintName("fk_message_translations_language");
+
+            entity.HasOne(d => d.MessageNavigation).WithMany(p => p.MessageTranslations).HasConstraintName("fk_message_translations_message");
+        });
+
         modelBuilder.Entity<NotificationsLog>(entity =>
         {
             entity.HasKey(e => e.NotificationId).HasName("pk_notifications_log");
@@ -399,6 +422,16 @@ public partial class ParishBellDbContext : DbContext
             entity.HasOne(d => d.ReviewedByNavigation).WithMany(p => p.OnboardingRequests)
                 .OnDelete(DeleteBehavior.SetNull)
                 .HasConstraintName("fk_or_reviewed_by");
+        });
+
+        modelBuilder.Entity<PasswordResetToken>(entity =>
+        {
+            entity.HasKey(e => e.ResetTokenId).HasName("password_reset_tokens_pkey");
+
+            entity.Property(e => e.ResetTokenId).HasDefaultValueSql("gen_random_uuid()");
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("now()");
+
+            entity.HasOne(d => d.User).WithMany(p => p.PasswordResetTokens).HasConstraintName("password_reset_tokens_user_id_fkey");
         });
 
         modelBuilder.Entity<RefreshToken>(entity =>
@@ -456,20 +489,6 @@ public partial class ParishBellDbContext : DbContext
             entity.HasOne(d => d.Schedule).WithMany(p => p.UserMassReminders).HasConstraintName("fk_umr_schedule");
 
             entity.HasOne(d => d.User).WithMany(p => p.UserMassReminders).HasConstraintName("fk_umr_user");
-        });
-
-        modelBuilder.Entity<Message>(entity =>
-        {
-            entity.HasKey(e => e.MessageId).HasName("messages_pkey");
-            entity.Property(e => e.MessageId).HasDefaultValueSql("gen_random_uuid()");
-            entity.Property(e => e.CreatedAt).HasDefaultValueSql("now()");
-        });
-
-        modelBuilder.Entity<MessageTranslation>(entity =>
-        {
-            entity.HasKey(e => e.TranslationId).HasName("message_translations_pkey");
-            entity.Property(e => e.TranslationId).HasDefaultValueSql("gen_random_uuid()");
-            entity.HasOne(d => d.MessageNavigation).WithMany(p => p.MessageTranslations).HasConstraintName("fk_message_translations_message");
         });
 
         OnModelCreatingPartial(modelBuilder);

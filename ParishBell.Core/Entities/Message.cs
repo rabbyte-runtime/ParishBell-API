@@ -1,6 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.ComponentModel.DataAnnotations;
+﻿using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using Microsoft.EntityFrameworkCore;
 
@@ -25,5 +23,5 @@ public partial class Message
     public DateTime? CreatedAt { get; set; }
 
     [InverseProperty("MessageNavigation")]
-    public virtual ICollection<MessageTranslation> MessageTranslations { get; set; } = [];
+    public virtual ICollection<MessageTranslation> MessageTranslations { get; set; } = new List<MessageTranslation>();
 }

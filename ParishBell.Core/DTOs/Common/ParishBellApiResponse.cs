@@ -1,5 +1,3 @@
-using ParishBell.Core.Enums;
-
 namespace ParishBell.Core.DTOs.Common;
 
 public class ParishBellApiResponse<T>

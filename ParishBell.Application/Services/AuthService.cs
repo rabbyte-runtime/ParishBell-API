@@ -393,4 +393,41 @@ public partial class AuthService(
         // IMPORTANT: This works because the email template service falls back to English anyway
         return Task.FromResult("en");
     }
+
+    // NOTE: Reset password flow - verifies code, updates password, invalidates tokens
+    public async Task ResetPasswordAsync(ResetPasswordRequestDto request, CancellationToken ct = default)
+    {
+        // NOTE: Validate input
+        if (request.NewPassword != request.ConfirmPassword)
+            throw new BadRequestException(MessageCodes.AuthPasswordsDoNotMatch);
+
+        if (!PasswordPolicyRegex().IsMatch(request.NewPassword))
+            throw new BadRequestException(MessageCodes.AuthWeakPassword);
+
+        // NOTE: Look up the user
+        var user = await _authRepository.GetUserByEmailAsync(request.Email, ct);
+
+        // IMPORTANT: Generic error message - don't reveal whether email exists or which provider
+        if (user is null || user.AuthProvider != (short)AuthProvider.Email)
+            throw new BadRequestException(MessageCodes.AuthInvalidResetCode);
+
+        // NOTE: Verify the code
+        var codeHash = _jwtTokenService.HashToken(request.Code);
+        var resetToken = await _passwordResetRepository.GetActiveTokenAsync(user.UserId, codeHash, ct);
+
+        if (resetToken is null)
+            throw new BadRequestException(MessageCodes.AuthInvalidResetCode);
+
+        // NOTE: Hash the new password and update
+        var newPasswordHash = _passwordHasher.Hash(request.NewPassword);
+        await _authRepository.UpdateUserPasswordAsync(user.UserId, newPasswordHash, ct);
+
+        // IMPORTANT: Invalidate the used token AND all other active tokens for this user
+        await _passwordResetRepository.MarkTokenUsedAsync(resetToken.ResetTokenId, ct);
+        await _passwordResetRepository.InvalidateAllActiveTokensAsync(user.UserId, ct);
+
+        // IMPORTANT: Revoke all refresh tokens - force sign-in on all devices for security
+        // NOTE: After password change, all existing sessions must be terminated
+        await _authRepository.RevokeAllUserRefreshTokensAsync(user.UserId, ct);
+    }
 }

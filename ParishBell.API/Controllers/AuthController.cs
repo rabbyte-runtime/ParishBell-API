@@ -86,6 +86,22 @@ public class AuthController(IAuthService authService, IMessageCache messages) : 
         return Ok(response);
     }
 
+    // NOTE: POST - /api/v1/auth/reset-password
+    [HttpPost("reset-password")]
+    public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordRequestDto request, CancellationToken ct)
+    {
+        await _authService.ResetPasswordAsync(request, ct);
+
+        var response = ApiResponseBuilder.Build<object?>(
+            HttpContext,
+            _messages,
+            StatusCodes.Status200OK,
+            MessageCodes.AuthResetPasswordSuccess,
+            null);
+
+        return Ok(response);
+    }
+
     // NOTE: Get client IP address
     private string GetClientIpAddress()
     {

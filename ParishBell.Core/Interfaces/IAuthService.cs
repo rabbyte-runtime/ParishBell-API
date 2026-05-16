@@ -15,4 +15,8 @@ public interface IAuthService
 
     // NOTE: Logs out a user by revoking the provided refresh token
     Task LogoutAsync(LogoutRequestDto request, CancellationToken ct = default);
+
+    // NOTE: Initiate password reset - sends code via email (always returns 200, silent success)
+    Task ForgotPasswordAsync(ForgotPasswordRequestDto request, string ipAddress, CancellationToken ct = default);
+
 }

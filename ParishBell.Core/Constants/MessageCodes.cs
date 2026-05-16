@@ -20,6 +20,9 @@ public static class MessageCodes
     public const string AuthLoginSuccess = "PB-31";
     public const string AuthRefreshSuccess = "PB-32";
     public const string AuthLogoutSuccess = "PB-33";
+    public const string AuthForgotPasswordSent = "PB-34";
+    public const string AuthInvalidResetCode = "PB-35";
+    public const string AuthResetPasswordSuccess = "PB-36";
 
     // NOTE: General
     public const string GeneralUnexpectedError = "PB-1";

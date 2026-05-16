@@ -31,4 +31,10 @@ public interface IAuthRepository
 
     // NOTE: New - Revoke a single refresh token (logout this device)
     Task RevokeRefreshTokenAsync(Guid refreshTokenId, CancellationToken ct = default);
+
+    // NOTE: Update an existing user's password hash (used by reset-password)
+    Task UpdateUserPasswordAsync(Guid userId, string passwordHash, CancellationToken ct = default);
+
+    // NOTE: Get user by id (for password reset flow - we need PreferredLanguage too)
+    Task<AppUser?> GetUserByIdAsync(Guid userId, CancellationToken ct = default);
 }

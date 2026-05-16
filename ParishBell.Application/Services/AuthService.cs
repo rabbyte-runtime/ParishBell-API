@@ -1,4 +1,6 @@
 using System.Text.RegularExpressions;
+using Microsoft.Extensions.Options;
+using ParishBell.Core.Configuration;
 using ParishBell.Core.Constants;
 using ParishBell.Core.DTOs.Auth;
 using ParishBell.Core.Entities;
@@ -12,12 +14,20 @@ public partial class AuthService(
     IAuthRepository authRepository,
     IPasswordHasher passwordHasher,
     IJwtTokenService jwtTokenService,
+    IPasswordResetRepository passwordResetRepository,
+    IEmailService emailService,
+    IOptions<PasswordResetSettings> passwordResetOptions,
+    IMessageCache messageCache,
     IEnumerable<IExternalAuthValidator> externalAuthValidators) : IAuthService
 {
     // NOTE: Dependencies for authentication
     private readonly IAuthRepository _authRepository = authRepository;
     private readonly IPasswordHasher _passwordHasher = passwordHasher;
     private readonly IJwtTokenService _jwtTokenService = jwtTokenService;
+    private readonly IPasswordResetRepository _passwordResetRepository = passwordResetRepository;
+    private readonly IEmailService _emailService = emailService;
+    private readonly PasswordResetSettings _passwordResetSettings = passwordResetOptions.Value;
+    private readonly IMessageCache _messageCache = messageCache;
 
     // NOTE: All registered external auth validators (Google only as of now)
     private readonly IEnumerable<IExternalAuthValidator> _externalAuthValidators = externalAuthValidators;
@@ -312,5 +322,75 @@ public partial class AuthService(
 
         // NOTE: Revoke this single refresh token
         await _authRepository.RevokeRefreshTokenAsync(storedToken.RefreshTokenId, ct);
+    }
+
+    public async Task ForgotPasswordAsync(ForgotPasswordRequestDto request, string ipAddress, CancellationToken ct = default)
+    {
+        // IMPORTANT: Silent success - same response for ALL cases (no info leak)
+        // NOTE: The actual email send only happens for valid email-provider users
+
+        // NOTE: Look up the user
+        var user = await _authRepository.GetUserByEmailAsync(request.Email, ct);
+
+        // IMPORTANT: Bail silently if:
+        // - Email doesn't exist
+        // - User is inactive
+        // - User registered with social provider (Google/Apple)
+        if (user is null || !user.IsActive || user.AuthProvider != (short)AuthProvider.Email)
+        {
+            return;
+        }
+
+        // IMPORTANT: Rate limit - max N requests per hour per email
+        var recentCount = await _passwordResetRepository.CountRecentTokensAsync(user.UserId, TimeSpan.FromHours(1), ct);
+
+        if (recentCount >= _passwordResetSettings.MaxRequestsPerHour)
+        {
+            // IMPORTANT: Don't reveal the rate limit - silent ignore
+            // NOTE: User can try again in an hour
+            return;
+        }
+
+        // NOTE: Generate a 6-digit code
+        var code = GenerateSixDigitCode();
+
+        // NOTE: Hash and store
+        var resetToken = new PasswordResetToken
+        {
+            ResetTokenId = Guid.NewGuid(),
+            UserId = user.UserId,
+            CodeHash = _jwtTokenService.HashToken(code),
+            ExpiresAt = DateTime.UtcNow.AddMinutes(_passwordResetSettings.CodeExpiryMinutes),
+            CreatedAt = DateTime.UtcNow,
+            CreatedByIp = ipAddress,
+            IsUsed = false
+        };
+
+        await _passwordResetRepository.SaveResetTokenAsync(resetToken, ct);
+
+        // NOTE: Get user's preferred language code (en/si/ta) from cache
+        var languageCode = await GetUserLanguageCodeAsync(user.PreferredLanguage, ct);
+
+        // NOTE: Send the email (or log in mock mode)
+        await _emailService.SendPasswordResetEmailAsync(user.Email, user.FullName, code, languageCode, ct);
+    }
+
+    // NOTE: Generate a cryptographically random 6-digit code
+    // IMPORTANT: Uses RandomNumberGenerator (not Random) for unpredictability
+    private static string GenerateSixDigitCode()
+    {
+        // NOTE: 0..999999 range
+        var bytes = System.Security.Cryptography.RandomNumberGenerator.GetBytes(4);
+        var number = BitConverter.ToUInt32(bytes, 0) % 1000000;
+        return number.ToString("D6"); // NOTE: Pad to 6 digits with leading zeros
+    }
+
+    // NOTE: Convert a language UUID to its language code (en/si/ta)
+    // TODO: Move to a language cache later for performance
+    private static Task<string> GetUserLanguageCodeAsync(Guid languageId, CancellationToken ct)
+    {
+        // NOTE: For now, default to English. Will be enhanced later with a LanguageCache
+        // IMPORTANT: This works because the email template service falls back to English anyway
+        return Task.FromResult("en");
     }
 }

@@ -10,6 +10,7 @@ using ParishBell.Core.Interfaces;
 using ParishBell.Infrastructure.BackgroundJobs;
 using ParishBell.Infrastructure.Caching;
 using ParishBell.Infrastructure.Data;
+using ParishBell.Infrastructure.Email;
 using ParishBell.Infrastructure.Repositories;
 using ParishBell.Infrastructure.Security;
 
@@ -30,9 +31,15 @@ builder.Services.AddMemoryCache();
 // NOTE: Configure Google Auth settings - reads from user-secrets
 builder.Services.Configure<GoogleAuthSettings>(builder.Configuration.GetSection("GoogleAuth"));
 
+// NOTE: Configure password reset and SendGrid settings
+builder.Services.Configure<SendGridSettings>(builder.Configuration.GetSection("SendGrid"));
+
 // NOTE: Inject IMessageRepository and IMessageCache
 builder.Services.AddScoped<IMessageRepository, MessageRepository>();
 builder.Services.AddScoped<IMessageCache, MessageCache>();
+
+// NOTE: Register email service
+builder.Services.AddScoped<IEmailService, SendGridEmailService>();
 
 // NOTE: Add hosted services
 builder.Services.AddHostedService<MessageCacheStartupService>();

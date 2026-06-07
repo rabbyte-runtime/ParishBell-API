@@ -52,6 +52,7 @@ builder.Services.AddScoped<IPasswordHasher, PasswordHasher>();
 builder.Services.Configure<JwtSettings>(builder.Configuration.GetSection("JwtSettings"));
 builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
 builder.Services.AddScoped<IExternalAuthValidator, GoogleAuthValidator>();
+builder.Services.AddScoped<IPasswordResetRepository, PasswordResetRepository>();
 
 // NOTE: Load user secrets
 if (builder.Environment.IsDevelopment())

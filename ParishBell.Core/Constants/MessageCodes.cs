@@ -29,6 +29,8 @@ public static class MessageCodes
     public const string GeneralNotFound = "PB-2";
     public const string GeneralUnauthorized = "PB-3";
     public const string GeneralForbidden = "PB-4";
+    public const string LanguagesRetrieved = "PB-37";
+    public const string NoLanguagesFound = "PB-38";
 
     // NOTE: Other
     public const string RateLimitExceeded = "PB-16";

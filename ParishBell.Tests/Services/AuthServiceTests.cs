@@ -1,5 +1,7 @@
+using Microsoft.Extensions.Options;
 using Moq;
 using ParishBell.Application.Services;
+using ParishBell.Core.Configuration;
 using ParishBell.Core.Constants;
 using ParishBell.Core.DTOs.Auth;
 using ParishBell.Core.Entities;
@@ -15,6 +17,8 @@ public class AuthServiceTests
     private readonly Mock<IPasswordHasher> _mockHasher;
     private readonly Mock<IJwtTokenService> _mockJwt;
     private readonly Mock<IExternalAuthValidator> _mockGoogleValidator;
+    private readonly Mock<IPasswordResetRepository> _mockPasswordResetRepo;
+    private readonly Mock<IEmailService> _mockEmailService;
     private readonly AuthService _authService;
 
     private readonly Guid _testLanguageId = Guid.NewGuid();
@@ -25,13 +29,24 @@ public class AuthServiceTests
         _mockRepo = new Mock<IAuthRepository>();
         _mockHasher = new Mock<IPasswordHasher>();
         _mockJwt = new Mock<IJwtTokenService>();
+        _mockPasswordResetRepo = new Mock<IPasswordResetRepository>();
+        _mockEmailService = new Mock<IEmailService>();
 
         // NOTE: Mock Google validator
         _mockGoogleValidator = new Mock<IExternalAuthValidator>();
         _mockGoogleValidator.Setup(v => v.Provider).Returns(AuthProvider.Google);
 
         // NOTE: Create the service with mocked dependencies
-        _authService = new AuthService(_mockRepo.Object, _mockHasher.Object, _mockJwt.Object, [_mockGoogleValidator.Object]);
+        _authService = new AuthService(
+            _mockRepo.Object,
+            _mockHasher.Object,
+            _mockJwt.Object,
+            _mockPasswordResetRepo.Object,
+            _mockEmailService.Object,
+            Options.Create(new PasswordResetSettings { CodeExpiryMinutes = 15, MaxRequestsPerHour = 3 }),
+            Mock.Of<IMessageCache>(),
+            [_mockGoogleValidator.Object]
+        );
 
         // NOTE: Set up default JWT mocks
         SetupJwtMocks();
@@ -1122,6 +1137,384 @@ public class AuthServiceTests
 
         // IMPORTANT: We also don't trigger all-session revocation - logout is NOT a reuse attack signal
         _mockRepo.Verify(r => r.RevokeAllUserRefreshTokensAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    // NOTE: FORGOT PASSWORD TESTS
+
+    // IMPORTANT: TEST 30 - Valid email user - code generated and email sent
+    [Fact]
+    public async Task ForgotPasswordAsync_WithValidEmailUser_SavesTokenAndSendsEmail()
+    {
+        var request = new ForgotPasswordRequestDto { Email = "test@parishbell.lk" };
+
+        var user = new AppUser
+        {
+            UserId = Guid.NewGuid(),
+            Email = "test@parishbell.lk",
+            FullName = "Test User",
+            AuthProvider = (short)AuthProvider.Email,
+            IsActive = true,
+            PreferredLanguage = _testLanguageId
+        };
+
+        _mockRepo.Setup(r => r.GetUserByEmailAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(user);
+        _mockPasswordResetRepo.Setup(r => r.CountRecentTokensAsync(It.IsAny<Guid>(), It.IsAny<TimeSpan>(), It.IsAny<CancellationToken>())).ReturnsAsync(0);
+        _mockPasswordResetRepo.Setup(r => r.SaveResetTokenAsync(It.IsAny<PasswordResetToken>(), It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+        _mockEmailService.Setup(e => e.SendPasswordResetEmailAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+
+        await _authService.ForgotPasswordAsync(request, "127.0.0.1");
+
+        // IMPORTANT: Reset token saved
+        _mockPasswordResetRepo.Verify(r => r.SaveResetTokenAsync(It.IsAny<PasswordResetToken>(), It.IsAny<CancellationToken>()), Times.Once);
+
+        // IMPORTANT: Email sent
+        _mockEmailService.Verify(e => e.SendPasswordResetEmailAsync(
+            "test@parishbell.lk",
+            "Test User",
+            It.IsAny<string>(),
+            It.IsAny<string>(),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    // IMPORTANT: TEST 31 - Non-existent email - silent success
+    [Fact]
+    public async Task ForgotPasswordAsync_NonExistentEmail_SilentlySucceeds()
+    {
+        var request = new ForgotPasswordRequestDto { Email = "doesnotexist@parishbell.lk" };
+
+        _mockRepo.Setup(r => r.GetUserByEmailAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync((AppUser?)null);
+
+        // NOTE: Should NOT throw
+        await _authService.ForgotPasswordAsync(request, "127.0.0.1");
+
+        // IMPORTANT: No token saved, no email sent
+        _mockPasswordResetRepo.Verify(r => r.SaveResetTokenAsync(It.IsAny<PasswordResetToken>(), It.IsAny<CancellationToken>()), Times.Never);
+        _mockEmailService.Verify(e => e.SendPasswordResetEmailAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    // IMPORTANT: TEST 32 - Google account - silent success
+    [Fact]
+    public async Task ForgotPasswordAsync_GoogleAccount_SilentlySucceeds()
+    {
+        var request = new ForgotPasswordRequestDto { Email = "rabbyte@gmail.com" };
+
+        var googleUser = new AppUser
+        {
+            UserId = Guid.NewGuid(),
+            Email = "rabbyte@gmail.com",
+            AuthProvider = (short)AuthProvider.Google,
+            IsActive = true
+        };
+
+        _mockRepo.Setup(r => r.GetUserByEmailAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(googleUser);
+
+        await _authService.ForgotPasswordAsync(request, "127.0.0.1");
+
+        // IMPORTANT: Even though user exists, no email is sent for non-Email providers
+        _mockPasswordResetRepo.Verify(r => r.SaveResetTokenAsync(It.IsAny<PasswordResetToken>(), It.IsAny<CancellationToken>()), Times.Never);
+        _mockEmailService.Verify(e => e.SendPasswordResetEmailAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    // IMPORTANT: TEST 33 - Inactive user - silent success
+    [Fact]
+    public async Task ForgotPasswordAsync_InactiveUser_SilentlySucceeds()
+    {
+        var request = new ForgotPasswordRequestDto { Email = "inactive@parishbell.lk" };
+
+        var inactiveUser = new AppUser
+        {
+            UserId = Guid.NewGuid(),
+            Email = "inactive@parishbell.lk",
+            AuthProvider = (short)AuthProvider.Email,
+            IsActive = false  // IMPORTANT: Deactivated
+        };
+
+        _mockRepo.Setup(r => r.GetUserByEmailAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(inactiveUser);
+
+        await _authService.ForgotPasswordAsync(request, "127.0.0.1");
+
+        // IMPORTANT: Inactive users don't get reset emails
+        _mockPasswordResetRepo.Verify(r => r.SaveResetTokenAsync(It.IsAny<PasswordResetToken>(), It.IsAny<CancellationToken>()), Times.Never);
+        _mockEmailService.Verify(e => e.SendPasswordResetEmailAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    // IMPORTANT: TEST 34 - Rate limit hit - silent success
+    [Fact]
+    public async Task ForgotPasswordAsync_RateLimitHit_SilentlySucceeds()
+    {
+        var request = new ForgotPasswordRequestDto { Email = "test@parishbell.lk" };
+
+        var user = new AppUser
+        {
+            UserId = Guid.NewGuid(),
+            Email = "test@parishbell.lk",
+            FullName = "Test User",
+            AuthProvider = (short)AuthProvider.Email,
+            IsActive = true
+        };
+
+        _mockRepo.Setup(r => r.GetUserByEmailAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(user);
+
+        // IMPORTANT: 3 tokens already in the last hour (default rate limit)
+        _mockPasswordResetRepo.Setup(r => r.CountRecentTokensAsync(It.IsAny<Guid>(), It.IsAny<TimeSpan>(), It.IsAny<CancellationToken>())).ReturnsAsync(3);
+
+        await _authService.ForgotPasswordAsync(request, "127.0.0.1");
+
+        // IMPORTANT: No new token saved, no email sent - silent rate limit
+        _mockPasswordResetRepo.Verify(r => r.SaveResetTokenAsync(It.IsAny<PasswordResetToken>(), It.IsAny<CancellationToken>()), Times.Never);
+        _mockEmailService.Verify(e => e.SendPasswordResetEmailAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    // IMPORTANT: TEST 35 - Verify token side effects (correct hash, expiry, IP)
+    [Fact]
+    public async Task ForgotPasswordAsync_OnSuccess_SavesTokenWithCorrectAttributes()
+    {
+        var request = new ForgotPasswordRequestDto { Email = "test@parishbell.lk" };
+
+        var user = new AppUser
+        {
+            UserId = Guid.NewGuid(),
+            Email = "test@parishbell.lk",
+            FullName = "Test User",
+            AuthProvider = (short)AuthProvider.Email,
+            IsActive = true,
+            PreferredLanguage = _testLanguageId
+        };
+
+        _mockRepo.Setup(r => r.GetUserByEmailAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(user);
+        _mockPasswordResetRepo.Setup(r => r.CountRecentTokensAsync(It.IsAny<Guid>(), It.IsAny<TimeSpan>(), It.IsAny<CancellationToken>())).ReturnsAsync(0);
+
+        await _authService.ForgotPasswordAsync(request, "192.168.1.100");
+
+        // IMPORTANT: Verify token has expected attributes
+        _mockPasswordResetRepo.Verify(r => r.SaveResetTokenAsync(It.Is<PasswordResetToken>(t =>
+            t.UserId == user.UserId
+            && t.CodeHash == "hashed_refresh"  // NOTE: Matches what _mockJwt.HashToken returns
+            && t.CreatedByIp == "192.168.1.100"
+            && t.IsUsed == false
+            && t.ExpiresAt > DateTime.UtcNow
+            && t.ExpiresAt <= DateTime.UtcNow.AddMinutes(15)
+        ), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    // NOTE: RESET-PASSWORD TESTS
+
+    // IMPORTANT: TEST 36 - Valid reset succeeds with all side effects
+    [Fact]
+    public async Task ResetPasswordAsync_WithValidCode_UpdatesPasswordAndCleansUp()
+    {
+        var request = new ResetPasswordRequestDto
+        {
+            Email = "test@parishbell.lk",
+            Code = "482917",
+            NewPassword = "NewPassword123",
+            ConfirmPassword = "NewPassword123"
+        };
+
+        var user = new AppUser
+        {
+            UserId = Guid.NewGuid(),
+            Email = "test@parishbell.lk",
+            FullName = "Test User",
+            AuthProvider = (short)AuthProvider.Email,
+            IsActive = true
+        };
+
+        var resetToken = new PasswordResetToken
+        {
+            ResetTokenId = Guid.NewGuid(),
+            UserId = user.UserId,
+            CodeHash = "hashed_refresh",
+            ExpiresAt = DateTime.UtcNow.AddMinutes(10),
+            IsUsed = false
+        };
+
+        _mockRepo.Setup(r => r.GetUserByEmailAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(user);
+        _mockPasswordResetRepo.Setup(r => r.GetActiveTokenAsync(user.UserId, It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(resetToken);
+        _mockHasher.Setup(h => h.Hash("NewPassword123")).Returns("new_hashed_password");
+        _mockRepo.Setup(r => r.UpdateUserPasswordAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+        _mockPasswordResetRepo.Setup(r => r.MarkTokenUsedAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+        _mockPasswordResetRepo.Setup(r => r.InvalidateAllActiveTokensAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+        _mockRepo.Setup(r => r.RevokeAllUserRefreshTokensAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+
+        await _authService.ResetPasswordAsync(request);
+
+        _mockRepo.Verify(r => r.UpdateUserPasswordAsync(user.UserId, "new_hashed_password", It.IsAny<CancellationToken>()), Times.Once);
+        _mockPasswordResetRepo.Verify(r => r.MarkTokenUsedAsync(resetToken.ResetTokenId, It.IsAny<CancellationToken>()), Times.Once);
+        _mockPasswordResetRepo.Verify(r => r.InvalidateAllActiveTokensAsync(user.UserId, It.IsAny<CancellationToken>()), Times.Once);
+        _mockRepo.Verify(r => r.RevokeAllUserRefreshTokensAsync(user.UserId, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    // IMPORTANT: TEST 37 - Password mismatch -> BadRequestException
+    [Fact]
+    public async Task ResetPasswordAsync_PasswordMismatch_ThrowsBadRequestException()
+    {
+        var request = new ResetPasswordRequestDto
+        {
+            Email = "test@parishbell.lk",
+            Code = "482917",
+            NewPassword = "NewPassword123",
+            ConfirmPassword = "DifferentPassword123"
+        };
+
+        var exception = await Assert.ThrowsAsync<BadRequestException>(() => _authService.ResetPasswordAsync(request));
+        Assert.Equal(MessageCodes.AuthPasswordsDoNotMatch, exception.MessageCode);
+
+        _mockRepo.Verify(r => r.GetUserByEmailAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+        _mockRepo.Verify(r => r.UpdateUserPasswordAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    // IMPORTANT: TEST 38 - Weak password -> BadRequestException
+    [Theory]
+    [InlineData("weak")]
+    [InlineData("password")]
+    [InlineData("PASSWORD")]
+    [InlineData("Pass123")]
+    [InlineData("password123")]
+    public async Task ResetPasswordAsync_WeakPassword_ThrowsBadRequestException(string weakPassword)
+    {
+        var request = new ResetPasswordRequestDto
+        {
+            Email = "test@parishbell.lk",
+            Code = "482917",
+            NewPassword = weakPassword,
+            ConfirmPassword = weakPassword
+        };
+
+        var exception = await Assert.ThrowsAsync<BadRequestException>(() => _authService.ResetPasswordAsync(request));
+        Assert.Equal(MessageCodes.AuthWeakPassword, exception.MessageCode);
+
+        _mockRepo.Verify(r => r.GetUserByEmailAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    // IMPORTANT: TEST 39 - Non-existent email -> BadRequestException
+    [Fact]
+    public async Task ResetPasswordAsync_NonExistentEmail_ThrowsBadRequestException()
+    {
+        var request = new ResetPasswordRequestDto
+        {
+            Email = "nonexistent@parishbell.lk",
+            Code = "482917",
+            NewPassword = "NewPassword123",
+            ConfirmPassword = "NewPassword123"
+        };
+
+        _mockRepo.Setup(r => r.GetUserByEmailAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync((AppUser?)null);
+
+        var exception = await Assert.ThrowsAsync<BadRequestException>(() => _authService.ResetPasswordAsync(request));
+        Assert.Equal(MessageCodes.AuthInvalidResetCode, exception.MessageCode);
+
+        _mockPasswordResetRepo.Verify(r => r.GetActiveTokenAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+        _mockRepo.Verify(r => r.UpdateUserPasswordAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    // IMPORTANT: TEST 40 - Google account -> BadRequestException
+    [Fact]
+    public async Task ResetPasswordAsync_OnGoogleAccount_ThrowsBadRequestException()
+    {
+        var request = new ResetPasswordRequestDto
+        {
+            Email = "rajitha@gmail.com",
+            Code = "482917",
+            NewPassword = "NewPassword123",
+            ConfirmPassword = "NewPassword123"
+        };
+
+        var googleUser = new AppUser
+        {
+            UserId = Guid.NewGuid(),
+            Email = "rajitha@gmail.com",
+            AuthProvider = (short)AuthProvider.Google,
+            PasswordHash = null,
+            IsActive = true
+        };
+
+        _mockRepo.Setup(r => r.GetUserByEmailAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(googleUser);
+
+        var exception = await Assert.ThrowsAsync<BadRequestException>(() => _authService.ResetPasswordAsync(request));
+        Assert.Equal(MessageCodes.AuthInvalidResetCode, exception.MessageCode);
+
+        _mockPasswordResetRepo.Verify(r => r.GetActiveTokenAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+        _mockRepo.Verify(r => r.UpdateUserPasswordAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    // IMPORTANT: TEST 41 - Invalid/expired/used code -> BadRequestException
+    [Fact]
+    public async Task ResetPasswordAsync_InvalidCode_ThrowsBadRequestException()
+    {
+        var request = new ResetPasswordRequestDto
+        {
+            Email = "test@parishbell.lk",
+            Code = "999999",
+            NewPassword = "NewPassword123",
+            ConfirmPassword = "NewPassword123"
+        };
+
+        var user = new AppUser
+        {
+            UserId = Guid.NewGuid(),
+            Email = "test@parishbell.lk",
+            AuthProvider = (short)AuthProvider.Email,
+            IsActive = true
+        };
+
+        _mockRepo.Setup(r => r.GetUserByEmailAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(user);
+        _mockPasswordResetRepo.Setup(r => r.GetActiveTokenAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync((PasswordResetToken?)null);
+
+        var exception = await Assert.ThrowsAsync<BadRequestException>(() => _authService.ResetPasswordAsync(request));
+        Assert.Equal(MessageCodes.AuthInvalidResetCode, exception.MessageCode);
+
+        _mockRepo.Verify(r => r.UpdateUserPasswordAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+        _mockPasswordResetRepo.Verify(r => r.MarkTokenUsedAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+        _mockPasswordResetRepo.Verify(r => r.InvalidateAllActiveTokensAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+        _mockRepo.Verify(r => r.RevokeAllUserRefreshTokensAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    // IMPORTANT: TEST 42 - Verify all side effects on success
+    [Fact]
+    public async Task ResetPasswordAsync_OnSuccess_PerformsAllSecurityCleanup()
+    {
+        var request = new ResetPasswordRequestDto
+        {
+            Email = "test@parishbell.lk",
+            Code = "482917",
+            NewPassword = "BrandNewPassword123",
+            ConfirmPassword = "BrandNewPassword123"
+        };
+
+        var user = new AppUser
+        {
+            UserId = Guid.NewGuid(),
+            Email = "test@parishbell.lk",
+            AuthProvider = (short)AuthProvider.Email,
+            IsActive = true
+        };
+
+        var resetToken = new PasswordResetToken
+        {
+            ResetTokenId = Guid.NewGuid(),
+            UserId = user.UserId,
+            CodeHash = "hashed_refresh",
+            ExpiresAt = DateTime.UtcNow.AddMinutes(10),
+            IsUsed = false
+        };
+
+        _mockRepo.Setup(r => r.GetUserByEmailAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(user);
+        _mockPasswordResetRepo.Setup(r => r.GetActiveTokenAsync(user.UserId, It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(resetToken);
+        _mockHasher.Setup(h => h.Hash("BrandNewPassword123")).Returns("new_hashed_password");
+        _mockRepo.Setup(r => r.UpdateUserPasswordAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+        _mockPasswordResetRepo.Setup(r => r.MarkTokenUsedAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+        _mockPasswordResetRepo.Setup(r => r.InvalidateAllActiveTokensAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+        _mockRepo.Setup(r => r.RevokeAllUserRefreshTokensAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+
+        await _authService.ResetPasswordAsync(request);
+
+        // NOTE: Verify all 4 critical side effects
+        _mockHasher.Verify(h => h.Hash("BrandNewPassword123"), Times.Once);
+        _mockRepo.Verify(r => r.UpdateUserPasswordAsync(user.UserId, "new_hashed_password", It.IsAny<CancellationToken>()), Times.Once);
+        _mockPasswordResetRepo.Verify(r => r.MarkTokenUsedAsync(resetToken.ResetTokenId, It.IsAny<CancellationToken>()), Times.Once);
+        _mockPasswordResetRepo.Verify(r => r.InvalidateAllActiveTokensAsync(user.UserId, It.IsAny<CancellationToken>()), Times.Once);
+        _mockRepo.Verify(r => r.RevokeAllUserRefreshTokensAsync(user.UserId, It.IsAny<CancellationToken>()), Times.Once);
     }
 
     // NOTE: Helper to set up JWT mocks for tests

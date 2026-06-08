@@ -68,6 +68,40 @@ public class AuthController(IAuthService authService, IMessageCache messages) : 
         return Ok(response);
     }
 
+    // NOTE: POST - /api/v1/auth/forgot-password
+    // IMPORTANT: Always returns 200 with a generic message (silent success)
+    [HttpPost("forgot-password")]
+    public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordRequestDto request, CancellationToken ct)
+    {
+        var ipAddress = GetClientIpAddress();
+        await _authService.ForgotPasswordAsync(request, ipAddress, ct);
+
+        var response = ApiResponseBuilder.Build<object?>(
+            HttpContext,
+            _messages,
+            StatusCodes.Status200OK,
+            MessageCodes.AuthForgotPasswordSent,
+            null);
+
+        return Ok(response);
+    }
+
+    // NOTE: POST - /api/v1/auth/reset-password
+    [HttpPost("reset-password")]
+    public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordRequestDto request, CancellationToken ct)
+    {
+        await _authService.ResetPasswordAsync(request, ct);
+
+        var response = ApiResponseBuilder.Build<object?>(
+            HttpContext,
+            _messages,
+            StatusCodes.Status200OK,
+            MessageCodes.AuthResetPasswordSuccess,
+            null);
+
+        return Ok(response);
+    }
+
     // NOTE: Get client IP address
     private string GetClientIpAddress()
     {

@@ -20,12 +20,19 @@ public static class MessageCodes
     public const string AuthLoginSuccess = "PB-31";
     public const string AuthRefreshSuccess = "PB-32";
     public const string AuthLogoutSuccess = "PB-33";
+    public const string AuthForgotPasswordSent = "PB-34";
+    public const string AuthInvalidResetCode = "PB-35";
+    public const string AuthResetPasswordSuccess = "PB-36";
 
     // NOTE: General
     public const string GeneralUnexpectedError = "PB-1";
     public const string GeneralNotFound = "PB-2";
     public const string GeneralUnauthorized = "PB-3";
     public const string GeneralForbidden = "PB-4";
+    public const string LanguagesRetrieved = "PB-37";
+    public const string NoLanguagesFound = "PB-38";
+    public const string LocationTypesRetrieved = "PB-39";
+    public const string NoLocationTypesFound = "PB-40";
 
     // NOTE: Other
     public const string RateLimitExceeded = "PB-16";

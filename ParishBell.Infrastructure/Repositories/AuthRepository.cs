@@ -76,4 +76,17 @@ public class AuthRepository(ParishBellDbContext db) : IAuthRepository
         token.RevokedAt = DateTime.UtcNow;
         await _dbContext.SaveChangesAsync(ct);
     }
+
+    // NOTE: Update an existing user's password hash
+    public async Task UpdateUserPasswordAsync(Guid userId, string passwordHash, CancellationToken ct = default)
+    {
+        var user = await _dbContext.AppUsers.FindAsync([userId], ct);
+        if (user is null) return;
+
+        user.PasswordHash = passwordHash;
+        await _dbContext.SaveChangesAsync(ct);
+    }
+
+    // NOTE: Get user by id - needed for password reset flow (PreferredLanguage, FullName for email)
+    public async Task<AppUser?> GetUserByIdAsync(Guid userId, CancellationToken ct = default) => await _dbContext.AppUsers.AsNoTracking().FirstOrDefaultAsync(u => u.UserId == userId, ct);
 }

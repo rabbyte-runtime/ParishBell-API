@@ -18,6 +18,9 @@
   <ItemGroup>
     <ProjectReference Include="..\ParishBell.Application\ParishBell.Application.csproj" />
     <ProjectReference Include="..\ParishBell.Infrastructure\ParishBell.Infrastructure.csproj" />
+    <Content Include="EmailTemplates\**\*.*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
 
 </Project>

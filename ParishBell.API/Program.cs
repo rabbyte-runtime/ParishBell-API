@@ -58,6 +58,8 @@ builder.Services.AddScoped<IExternalAuthValidator, GoogleAuthValidator>();
 builder.Services.AddScoped<IPasswordResetRepository, PasswordResetRepository>();
 builder.Services.AddScoped<ILanguageRepository, LanguageRepository>();
 builder.Services.AddScoped<ILanguageService, LanguageService>();
+builder.Services.AddScoped<ILocationTypeRepository, LocationTypeRepository>();
+builder.Services.AddScoped<ILocationTypeService, LocationTypeService>();
 
 // NOTE: Load user secrets
 if (builder.Environment.IsDevelopment())

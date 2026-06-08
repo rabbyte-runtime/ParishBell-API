@@ -59,12 +59,12 @@ public class SendGridEmailService(IOptions<SendGridSettings> options, IWebHostEn
     // IMPORTANT: Falls back to English if requested language template doesn't exist
     private async Task<string> LoadEmailTemplateAsync(string languageCode, CancellationToken ct)
     {
-        var templatePath = Path.Combine(_env.ContentRootPath, "EmailTemplates", $"password-reset-{languageCode}.html");
+        var templatePath = Path.Combine(_env.ContentRootPath, "EmailTemplates", "ResetPassword", $"reset-password-{languageCode}.html");
 
         if (!File.Exists(templatePath))
         {
             _logger.LogWarning("Email template not found for '{Lang}'. Falling back to English.", languageCode);
-            templatePath = Path.Combine(_env.ContentRootPath, "EmailTemplates", "password-reset-en.html");
+            templatePath = Path.Combine(_env.ContentRootPath, "EmailTemplates", "ResetPassword", "reset-password-en.html");
         }
 
         return await File.ReadAllTextAsync(templatePath, Encoding.UTF8, ct);

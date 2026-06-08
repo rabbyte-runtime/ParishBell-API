@@ -31,6 +31,8 @@ public static class MessageCodes
     public const string GeneralForbidden = "PB-4";
     public const string LanguagesRetrieved = "PB-37";
     public const string NoLanguagesFound = "PB-38";
+    public const string LocationTypesRetrieved = "PB-39";
+    public const string NoLocationTypesFound = "PB-40";
 
     // NOTE: Other
     public const string RateLimitExceeded = "PB-16";

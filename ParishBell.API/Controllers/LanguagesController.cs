@@ -13,8 +13,8 @@ public class LanguagesController(ILanguageService languageService, IMessageCache
     private readonly ILanguageService _languageService = languageService;
     private readonly IMessageCache _messages = messages;
 
-    // GET /api/v1/languages
-    // IMPORTANT: public / unauthenticated - the client needs this on the sign-up screen before it has a JWT.
+    // NOTE: GET /api/v1/languages
+    // IMPORTANT: Public - the client needs this on the sign-up screen before it has a JWT.
     [HttpGet]
     public async Task<IActionResult> GetLanguages([FromHeader(Name = "Accept-Language")] string? acceptLanguage, CancellationToken ct)
     {

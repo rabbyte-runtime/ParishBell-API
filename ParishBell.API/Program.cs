@@ -34,6 +34,9 @@ builder.Services.Configure<GoogleAuthSettings>(builder.Configuration.GetSection(
 // NOTE: Configure password reset and SendGrid settings
 builder.Services.Configure<SendGridSettings>(builder.Configuration.GetSection("SendGrid"));
 
+// NOTE: Configure password reset settings
+builder.Services.Configure<PasswordResetSettings>(builder.Configuration.GetSection("PasswordReset"));
+
 // NOTE: Inject IMessageRepository and IMessageCache
 builder.Services.AddScoped<IMessageRepository, MessageRepository>();
 builder.Services.AddScoped<IMessageCache, MessageCache>();

@@ -22,6 +22,10 @@ public class GlobalExceptionMiddleware(RequestDelegate next, ILogger<GlobalExcep
         {
             await _next(context);
         }
+        catch (OperationCanceledException) when (context.RequestAborted.IsCancellationRequested)
+        {
+            _logger.LogDebug("Request cancelled by client: {Method} {Path}", context.Request.Method, context.Request.Path);
+        }
         catch (ParishBellException ex)
         {
             _logger.LogWarning("ParishBellException on {Method} {Path}: {Code}", context.Request.Method, context.Request.Path, ex.MessageCode);

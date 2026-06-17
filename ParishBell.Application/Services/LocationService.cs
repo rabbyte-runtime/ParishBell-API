@@ -1,5 +1,7 @@
 using ParishBell.Core.DTOs.Location;
+using ParishBell.Core.Exceptions;
 using ParishBell.Core.Interfaces;
+using ParishBell.Core.Constants;
 
 namespace ParishBell.Application.Services;
 
@@ -49,6 +51,55 @@ public class LocationService(ILocationRepository locationRepository) : ILocation
             Page = resolvedPage,
             PageSize = resolvedPageSize,
             HasMore = hasMore
+        };
+    }
+
+    public async Task<LocationDetailDto> GetLocationByIdAsync(Guid locationId, string languageCode, CancellationToken ct = default)
+    {
+        var result = await _locationRepository.GetLocationByIdAsync(locationId, languageCode, ct)
+            ?? throw new NotFoundException(MessageCodes.LocationNotFound);
+
+        return new LocationDetailDto
+        {
+            LocationId = result.LocationId,
+            LocationTypeId = result.LocationTypeId,
+            Latitude = result.Latitude,
+            Longitude = result.Longitude,
+            Name = result.Name,
+            Description = result.Description,
+            Address = result.Address,
+            Phone = result.Phone,
+            Email = result.Email,
+            Website = result.Website,
+            Images = [.. result.Images.Select(i => new LocationImageDto
+            {
+                ImageId = i.ImageId,
+                ImageUrl = i.ImageUrl,
+                IsPrimary = i.IsPrimary,
+                SortOrder = i.SortOrder
+            })],
+            MassSchedules = [.. result.Schedules.Select(s => new MassScheduleDto
+            {
+                ScheduleId = s.ScheduleId,
+                DayOfWeek = s.DayOfWeek,
+                MassTime = s.MassTime.ToString("HH:mm"),
+                IsSpecial = s.IsSpecial,
+                ValidFrom = s.ValidFrom?.ToString("yyyy-MM-dd"),
+                ValidTo = s.ValidTo?.ToString("yyyy-MM-dd"),
+                Label = s.Label
+            })],
+            FeastDays = [.. result.FeastDays.Select(f => new LocationFeastDayDto
+            {
+                LocationFeastDayId = f.LocationFeastDayId,
+                IsHighlighted = f.IsHighlighted,
+                Title = f.Title,
+                Description = f.Description,
+                IsHolyDay = f.IsHolyDay,
+                IsRecurringAnnually = f.IsRecurringAnnually,
+                Month = f.Month,
+                Day = f.Day,
+                SpecificDate = f.SpecificDate?.ToString("yyyy-MM-dd")
+            })]
         };
     }
 

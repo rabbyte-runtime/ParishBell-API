@@ -35,6 +35,8 @@ public static class MessageCodes
     public const string NoLocationTypesFound = "PB-40";
     public const string LocationsRetrieved = "PB-41";
     public const string NoLocationsFound = "PB-42";
+    public const string LocationDetailRetrieved = "PB-43";
+    public const string LocationNotFound = "PB-44";
 
     // NOTE: Other
     public const string RateLimitExceeded = "PB-16";

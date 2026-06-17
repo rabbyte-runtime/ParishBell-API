@@ -12,6 +12,17 @@ public class LocationsController(ILocationService locationService, IMessageCache
     private readonly ILocationService _locationService = locationService;
     private readonly IMessageCache _messages = messages;
 
+    // NOTE: GET /api/v1/locations/{locationId}
+    // IMPORTANT: Public - no JWT required.
+    [HttpGet("{locationId:guid}")]
+    public async Task<IActionResult> GetLocation(Guid locationId, [FromHeader(Name = "Accept-Language")] string? acceptLanguage, CancellationToken ct)
+    {
+        var languageCode = string.IsNullOrWhiteSpace(acceptLanguage) ? "en" : acceptLanguage.Trim();
+        var result = await _locationService.GetLocationByIdAsync(locationId, languageCode, ct);
+        var response = ApiResponseBuilder.Build(HttpContext, _messages, StatusCodes.Status200OK, MessageCodes.LocationDetailRetrieved, result);
+        return StatusCode(response.Status, response);
+    }
+
     // NOTE: GET /api/v1/locations
     // IMPORTANT: Public - no JWT required; used by the map and search before the user signs in.
     // NOTE: Optional ?q= searches name + address. Optional bbox params (minLat/maxLat/minLng/maxLng) limit to the visible viewport.

@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using ParishBell.API.Helpers;
 using ParishBell.Core.Constants;
@@ -7,9 +8,10 @@ namespace ParishBell.API.Controllers;
 
 [ApiController]
 [Route("api/v1/locations")]
-public class LocationsController(ILocationService locationService, IMessageCache messages) : ControllerBase
+public class LocationsController(ILocationService locationService, IEventService eventService, IMessageCache messages) : ControllerBase
 {
     private readonly ILocationService _locationService = locationService;
+    private readonly IEventService _eventService = eventService;
     private readonly IMessageCache _messages = messages;
 
     // NOTE: GET /api/v1/locations/{locationId}
@@ -20,6 +22,26 @@ public class LocationsController(ILocationService locationService, IMessageCache
         var languageCode = string.IsNullOrWhiteSpace(acceptLanguage) ? "en" : acceptLanguage.Trim();
         var result = await _locationService.GetLocationByIdAsync(locationId, languageCode, ct);
         var response = ApiResponseBuilder.Build(HttpContext, _messages, StatusCodes.Status200OK, MessageCodes.LocationDetailRetrieved, result);
+        return StatusCode(response.Status, response);
+    }
+
+    // NOTE: GET /api/v1/locations/{locationId}/events
+    // IMPORTANT: Requires User JWT.
+    // NOTE: fromDate/toDate are optional date filters ("yyyy-MM-dd"). Results ordered ascending by event date.
+    [Authorize]
+    [HttpGet("{locationId:guid}/events")]
+    public async Task<IActionResult> GetLocationEvents(
+        Guid locationId,
+        [FromHeader(Name = "Accept-Language")] string? acceptLanguage,
+        [FromQuery] DateOnly? fromDate,
+        [FromQuery] DateOnly? toDate,
+        [FromQuery] int? page,
+        [FromQuery] int? pageSize,
+        CancellationToken ct)
+    {
+        var languageCode = string.IsNullOrWhiteSpace(acceptLanguage) ? "en" : acceptLanguage.Trim();
+        var result = await _eventService.GetLocationEventsAsync(locationId, languageCode, fromDate, toDate, page, pageSize, ct);
+        var response = ApiResponseBuilder.Build(HttpContext, _messages, StatusCodes.Status200OK, MessageCodes.LocationEventsRetrieved, result);
         return StatusCode(response.Status, response);
     }
 

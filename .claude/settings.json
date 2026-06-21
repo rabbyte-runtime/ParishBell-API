@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls -la .vscode/)",
+      "Bash(find . -maxdepth 3 -name \"launch.json\")"
+    ]
+  }
+}

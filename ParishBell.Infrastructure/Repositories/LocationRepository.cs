@@ -32,12 +32,13 @@ public class LocationRepository(ParishBellDbContext dbContext) : ILocationReposi
         // NOTE: Search against name and address in the requested language + English fallback
         if (!string.IsNullOrWhiteSpace(q))
         {
-            var qTrimmed = q.Trim();
+            // NOTE: Escape LIKE wildcards so user input is matched literally, then wrap for a contains search.
+            var pattern = $"%{q.Trim().Replace("\\", "\\\\").Replace("%", "\\%").Replace("_", "\\_")}%";
             var matchIds = _dbContext.LocationTranslations
                 .AsNoTracking()
                 .Where(t => (t.LanguageId == requestedId || t.LanguageId == englishId)
-                        && (t.Name.Contains(qTrimmed, StringComparison.OrdinalIgnoreCase) ||
-                            (t.Address != null && t.Address.Contains(qTrimmed, StringComparison.OrdinalIgnoreCase))))
+                        && (EF.Functions.ILike(t.Name, pattern) ||
+                            (t.Address != null && EF.Functions.ILike(t.Address, pattern))))
                 .Select(t => t.LocationId);
 
             locQuery = locQuery.Where(l => matchIds.Contains(l.LocationId));

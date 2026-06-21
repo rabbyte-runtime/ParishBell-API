@@ -17,6 +17,7 @@ public class LocationTypeService(ILocationTypeRepository locationTypeRepository)
         var dtos = results.Select(r => new LocationTypeDto
         {
             LocationTypeId = r.LocationTypeId,
+            LocationTypeCode = r.LocationTypeCode,
             SortOrder = r.SortOrder,
             Name = r.Name
         }).ToList();

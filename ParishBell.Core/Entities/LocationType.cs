@@ -15,6 +15,10 @@ public partial class LocationType
     [Column("location_type_id")]
     public Guid LocationTypeId { get; set; }
 
+    [Column("location_type_code")]
+    [StringLength(30)]
+    public string LocationTypeCode { get; set; } = null!;
+
     [Column("sort_order")]
     public int SortOrder { get; set; }
 

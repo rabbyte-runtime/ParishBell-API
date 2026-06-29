@@ -88,6 +88,8 @@ builder.Services.AddScoped<ILocationRepository, LocationRepository>();
 builder.Services.AddScoped<ILocationService, LocationService>();
 builder.Services.AddScoped<IEventRepository, EventRepository>();
 builder.Services.AddScoped<IEventService, EventService>();
+builder.Services.AddScoped<ILocationFollowRepository, LocationFollowRepository>();
+builder.Services.AddScoped<ILocationFollowService, LocationFollowService>();
 
 // NOTE: Load user secrets
 if (builder.Environment.IsDevelopment())

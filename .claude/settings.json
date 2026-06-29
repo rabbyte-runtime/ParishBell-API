@@ -2,7 +2,15 @@
   "permissions": {
     "allow": [
       "Bash(ls -la .vscode/)",
-      "Bash(find . -maxdepth 3 -name \"launch.json\")"
+      "Bash(find . -maxdepth 3 -name \"launch.json\")",
+      "Bash(export PGPASSWORD='reallyStrongPwd123')",
+      "Bash(psql -h localhost -p 5432 -U rabbyte -d parishbell -At -F ' | ' -c \"SELECT message_code, message_type FROM messages ORDER BY message_code;\")",
+      "Bash(psql -h localhost -p 5432 -U rabbyte -d parishbell -c \"\\\\d messages\" -c \"\\\\d message_translations\")",
+      "Bash(psql -h localhost -p 5432 -U rabbyte -d parishbell -At -F ' | ' -c \"SELECT message_code, message_type FROM messages WHERE message_code LIKE 'PB-4%' OR message_code LIKE 'PB-3%' ORDER BY \\(regexp_replace\\(message_code,'PB-',''\\)::int\\);\")",
+      "Bash(psql -h localhost -p 5432 -U rabbyte -d parishbell -At -c \"SELECT DISTINCT message_type FROM messages;\")",
+      "Bash(psql -h localhost -p 5432 -U rabbyte -d parishbell -c \"\\\\d user_followed_locations\")",
+      "Bash(psql -h localhost -p 5432 -U rabbyte -d parishbell -At -F ' | ' -c \"SELECT message_code FROM messages WHERE message_code IN \\('PB-45','PB-46','PB-47'\\);\" -c \"SELECT max\\(\\(regexp_replace\\(message_code,'PB-',''\\)::int\\)\\) AS max_code FROM messages;\" -c \"SELECT user_id, email FROM app_users LIMIT 3;\")",
+      "PowerShell(dotnet build \"c:\\\\LTR\\\\ParishBell\\\\Source_codes\\\\APIs\\\\ParishBell.API\\\\ParishBell.API.csproj\" -nologo -clp:NoSummary 2>&1)"
     ]
   }
 }

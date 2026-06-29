@@ -8,10 +8,11 @@ namespace ParishBell.API.Controllers;
 
 [ApiController]
 [Route("api/v1/locations")]
-public class LocationsController(ILocationService locationService, IEventService eventService, IMessageCache messages) : ControllerBase
+public class LocationsController(ILocationService locationService, IEventService eventService, ILocationFollowService followService, IMessageCache messages) : ControllerBase
 {
     private readonly ILocationService _locationService = locationService;
     private readonly IEventService _eventService = eventService;
+    private readonly ILocationFollowService _followService = followService;
     private readonly IMessageCache _messages = messages;
 
     // NOTE: GET /api/v1/locations/{locationId}
@@ -57,6 +58,30 @@ public class LocationsController(ILocationService locationService, IEventService
         var languageCode = string.IsNullOrWhiteSpace(acceptLanguage) ? "en" : acceptLanguage.Trim();
         var result = await _locationService.GetActiveLocationsAsync(languageCode, minLat, maxLat, minLng, maxLng, q, userLat, userLng, page, pageSize, ct);
         var response = ApiResponseBuilder.Build(HttpContext, _messages, StatusCodes.Status200OK, MessageCodes.LocationsRetrieved, result);
+        return StatusCode(response.Status, response);
+    }
+
+    // NOTE: POST /api/v1/locations/{locationId}/follow
+    // IMPORTANT: Requires User JWT. Idempotent — re-following returns success.
+    [Authorize]
+    [HttpPost("{locationId:guid}/follow")]
+    public async Task<IActionResult> FollowLocation(Guid locationId, CancellationToken ct)
+    {
+        var userId = User.GetUserId();
+        await _followService.FollowLocationAsync(userId, locationId, ct);
+        var response = ApiResponseBuilder.Build<object?>(HttpContext, _messages, StatusCodes.Status200OK, MessageCodes.LocationFollowed, null);
+        return StatusCode(response.Status, response);
+    }
+
+    // NOTE: DELETE /api/v1/locations/{locationId}/follow
+    // IMPORTANT: Requires User JWT. Idempotent — unfollowing a non-followed location returns success.
+    [Authorize]
+    [HttpDelete("{locationId:guid}/follow")]
+    public async Task<IActionResult> UnfollowLocation(Guid locationId, CancellationToken ct)
+    {
+        var userId = User.GetUserId();
+        await _followService.UnfollowLocationAsync(userId, locationId, ct);
+        var response = ApiResponseBuilder.Build<object?>(HttpContext, _messages, StatusCodes.Status200OK, MessageCodes.LocationUnfollowed, null);
         return StatusCode(response.Status, response);
     }
 }

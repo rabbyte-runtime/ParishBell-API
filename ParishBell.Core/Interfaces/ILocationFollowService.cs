@@ -1,7 +1,12 @@
+using ParishBell.Core.DTOs.Location;
+
 namespace ParishBell.Core.Interfaces;
 
 public interface ILocationFollowService
 {
+    // NOTE: Returns whether the user currently follows the location.
+    Task<FollowStatusDto> GetFollowStatusAsync(Guid userId, Guid locationId, CancellationToken ct = default);
+
     // NOTE: Follows a location for the user. Idempotent — re-following succeeds silently.
     Task FollowLocationAsync(Guid userId, Guid locationId, CancellationToken ct = default);
 

@@ -1,4 +1,5 @@
 using ParishBell.Core.Constants;
+using ParishBell.Core.DTOs.Location;
 using ParishBell.Core.Exceptions;
 using ParishBell.Core.Interfaces;
 
@@ -7,6 +8,12 @@ namespace ParishBell.Application.Services;
 public class LocationFollowService(ILocationFollowRepository followRepository) : ILocationFollowService
 {
     private readonly ILocationFollowRepository _followRepository = followRepository;
+
+    public async Task<FollowStatusDto> GetFollowStatusAsync(Guid userId, Guid locationId, CancellationToken ct = default)
+    {
+        bool isFollowing = await _followRepository.IsFollowingAsync(userId, locationId, ct);
+        return new FollowStatusDto { IsFollowing = isFollowing };
+    }
 
     public async Task FollowLocationAsync(Guid userId, Guid locationId, CancellationToken ct = default)
     {

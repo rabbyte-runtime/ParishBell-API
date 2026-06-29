@@ -61,6 +61,18 @@ public class LocationsController(ILocationService locationService, IEventService
         return StatusCode(response.Status, response);
     }
 
+    // NOTE: GET /api/v1/locations/{locationId}/follow
+    // IMPORTANT: Requires User JWT. Returns whether the current user follows the location.
+    [Authorize]
+    [HttpGet("{locationId:guid}/follow")]
+    public async Task<IActionResult> GetFollowStatus(Guid locationId, CancellationToken ct)
+    {
+        var userId = User.GetUserId();
+        var result = await _followService.GetFollowStatusAsync(userId, locationId, ct);
+        var response = ApiResponseBuilder.Build(HttpContext, _messages, StatusCodes.Status200OK, MessageCodes.LocationFollowStatusRetrieved, result);
+        return StatusCode(response.Status, response);
+    }
+
     // NOTE: POST /api/v1/locations/{locationId}/follow
     // IMPORTANT: Requires User JWT. Idempotent — re-following returns success.
     [Authorize]

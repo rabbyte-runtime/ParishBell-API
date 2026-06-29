@@ -16,6 +16,13 @@ public class LocationFollowRepository(ParishBellDbContext dbContext) : ILocation
             .AnyAsync(l => l.LocationId == locationId && l.IsApproved && l.IsActive, ct);
     }
 
+    public async Task<bool> IsFollowingAsync(Guid userId, Guid locationId, CancellationToken ct = default)
+    {
+        return await _dbContext.UserFollowedLocations
+            .AsNoTracking()
+            .AnyAsync(f => f.UserId == userId && f.LocationId == locationId, ct);
+    }
+
     public async Task AddFollowAsync(Guid userId, Guid locationId, CancellationToken ct = default)
     {
         // NOTE: Skip the insert when the follow already exists — keeps the call idempotent.

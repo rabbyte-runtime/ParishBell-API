@@ -40,6 +40,7 @@ public static class MessageCodes
     public const string LocationEventsRetrieved = "PB-45";
     public const string LocationFollowed = "PB-46";
     public const string LocationUnfollowed = "PB-47";
+    public const string LocationFollowStatusRetrieved = "PB-48";
 
     // NOTE: Other
     public const string RateLimitExceeded = "PB-16";

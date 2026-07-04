@@ -103,6 +103,45 @@ public class LocationService(ILocationRepository locationRepository) : ILocation
         };
     }
 
+    public async Task<LocationPageDto> GetFollowedLocationsAsync(Guid userId, string languageCode, int? page, int? pageSize, CancellationToken ct = default)
+    {
+        bool paginate = page.HasValue;
+        int resolvedPage = page ?? 1;
+        int resolvedPageSize = pageSize ?? 50;
+
+        // NOTE: Fetch one extra row so we can detect a next page without a separate count query
+        int? skip = paginate ? (resolvedPage - 1) * resolvedPageSize : null;
+        int? take = paginate ? resolvedPageSize + 1 : null;
+
+        var results = await _locationRepository.GetFollowedLocationsAsync(userId, languageCode, skip, take, ct);
+
+        bool hasMore = paginate && results.Count > resolvedPageSize;
+        if (hasMore) results = [.. results.Take(resolvedPageSize)];
+
+        var items = results.Select(r => new LocationDto
+        {
+            LocationId = r.LocationId,
+            Latitude = r.Latitude,
+            Longitude = r.Longitude,
+            LocationTypeId = r.LocationTypeId,
+            Name = r.Name,
+            Address = r.Address,
+            Phone = r.Phone,
+            Email = r.Email,
+            Website = r.Website,
+            // NOTE: No distance — the followed list isn't location-relative.
+            DistanceKm = null
+        }).ToList();
+
+        return new LocationPageDto
+        {
+            Items = items,
+            Page = resolvedPage,
+            PageSize = resolvedPageSize,
+            HasMore = hasMore
+        };
+    }
+
     // NOTE: Private helper methods
     private static double Haversine(decimal userLat, decimal userLng, decimal locLat, decimal locLng)
     {

@@ -10,4 +10,7 @@ public interface ILocationService
 
     // NOTE: Returns location details for the given LocationId
     Task<LocationDetailDto> GetLocationByIdAsync(Guid locationId, string languageCode, CancellationToken ct = default);
+
+    // NOTE: Returns a paged list of locations the user follows, most recently followed first.
+    Task<LocationPageDto> GetFollowedLocationsAsync(Guid userId, string languageCode, int? page, int? pageSize, CancellationToken ct = default);
 }

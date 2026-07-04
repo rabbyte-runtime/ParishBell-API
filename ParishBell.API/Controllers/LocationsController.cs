@@ -61,6 +61,20 @@ public class LocationsController(ILocationService locationService, IEventService
         return StatusCode(response.Status, response);
     }
 
+    // NOTE: GET /api/v1/locations/followed
+    // IMPORTANT: Requires User JWT. Returns the locations the current user follows, most recently followed first.
+    // NOTE: Supply page + pageSize (default 50) to lazy-load; omit both to return the full list.
+    [Authorize]
+    [HttpGet("followed")]
+    public async Task<IActionResult> GetFollowedLocations([FromHeader(Name = "Accept-Language")] string? acceptLanguage, [FromQuery] int? page, [FromQuery] int? pageSize, CancellationToken ct)
+    {
+        var languageCode = string.IsNullOrWhiteSpace(acceptLanguage) ? "en" : acceptLanguage.Trim();
+        var userId = User.GetUserId();
+        var result = await _locationService.GetFollowedLocationsAsync(userId, languageCode, page, pageSize, ct);
+        var response = ApiResponseBuilder.Build(HttpContext, _messages, StatusCodes.Status200OK, MessageCodes.FollowedLocationsRetrieved, result);
+        return StatusCode(response.Status, response);
+    }
+
     // NOTE: GET /api/v1/locations/{locationId}/follow
     // IMPORTANT: Requires User JWT. Returns whether the current user follows the location.
     [Authorize]

@@ -117,6 +117,77 @@ public class LocationRepository(ParishBellDbContext dbContext) : ILocationReposi
         return result;
     }
 
+    public async Task<List<LocationResult>> GetFollowedLocationsAsync(Guid userId, string languageCode, int? skip, int? take, CancellationToken ct = default)
+    {
+        // NOTE: Resolve the requested language + English to their UUIDs
+        var langs = await _dbContext.Languages.AsNoTracking().Where(l => l.LanguageCode == languageCode || l.LanguageCode == DefaultLanguageCode)
+            .Select(l => new { l.LanguageId, l.LanguageCode }).ToListAsync(ct);
+
+        var englishId = langs.FirstOrDefault(l => l.LanguageCode == DefaultLanguageCode)?.LanguageId;
+        var requestedId = langs.FirstOrDefault(l => l.LanguageCode == languageCode)?.LanguageId ?? englishId;
+
+        // NOTE: Follows joined to still-live locations, most recently followed first.
+        // idx_ufl_user covers the user filter; ThenBy LocationId keeps pagination pages stable.
+        IQueryable<Core.Entities.UserFollowedLocation> followQuery = _dbContext.UserFollowedLocations
+            .AsNoTracking()
+            .Where(f => f.UserId == userId && f.Location.IsApproved && f.Location.IsActive && !f.Location.IsRejected)
+            .OrderByDescending(f => f.FollowedAt)
+            .ThenBy(f => f.LocationId);
+
+        if (skip.HasValue) followQuery = followQuery.Skip(skip.Value);
+        if (take.HasValue) followQuery = followQuery.Take(take.Value);
+
+        var locations = await followQuery
+            .Select(f => new
+            {
+                f.Location.LocationId,
+                f.Location.LocationTypeId,
+                f.Location.Latitude,
+                f.Location.Longitude,
+                f.Location.Phone,
+                f.Location.Email,
+                f.Location.Website
+            })
+            .ToListAsync(ct);
+
+        if (locations.Count == 0)
+            return [];
+
+        var locationIds = locations.Select(l => l.LocationId).ToList();
+
+        var translations = await _dbContext.LocationTranslations.AsNoTracking()
+            .Where(t => locationIds.Contains(t.LocationId) && (t.LanguageId == requestedId || t.LanguageId == englishId))
+            .Select(t => new { t.LocationId, t.LanguageId, t.Name, t.Address }).ToListAsync(ct);
+
+        // NOTE: Preserve the followed-at ordering from the query above.
+        var result = new List<LocationResult>(locations.Count);
+        foreach (var loc in locations)
+        {
+            var name =
+                translations.FirstOrDefault(t => t.LocationId == loc.LocationId && t.LanguageId == requestedId)?.Name
+                ?? translations.FirstOrDefault(t => t.LocationId == loc.LocationId && t.LanguageId == englishId)?.Name
+                ?? string.Empty;
+
+            var address =
+                translations.FirstOrDefault(t => t.LocationId == loc.LocationId && t.LanguageId == requestedId)?.Address
+                ?? translations.FirstOrDefault(t => t.LocationId == loc.LocationId && t.LanguageId == englishId)?.Address;
+
+            result.Add(new LocationResult(
+                loc.LocationId,
+                loc.Latitude,
+                loc.Longitude,
+                loc.LocationTypeId,
+                name,
+                address,
+                loc.Phone,
+                loc.Email,
+                loc.Website
+            ));
+        }
+
+        return result;
+    }
+
     public async Task<LocationDetailResult?> GetLocationByIdAsync(Guid locationId, string languageCode, CancellationToken ct = default)
     {
         // NOTE: Resolve the requested language + English to their UUIDs

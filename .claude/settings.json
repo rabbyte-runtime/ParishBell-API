@@ -10,7 +10,9 @@
       "Bash(psql -h localhost -p 5432 -U rabbyte -d parishbell -At -c \"SELECT DISTINCT message_type FROM messages;\")",
       "Bash(psql -h localhost -p 5432 -U rabbyte -d parishbell -c \"\\\\d user_followed_locations\")",
       "Bash(psql -h localhost -p 5432 -U rabbyte -d parishbell -At -F ' | ' -c \"SELECT message_code FROM messages WHERE message_code IN \\('PB-45','PB-46','PB-47'\\);\" -c \"SELECT max\\(\\(regexp_replace\\(message_code,'PB-',''\\)::int\\)\\) AS max_code FROM messages;\" -c \"SELECT user_id, email FROM app_users LIMIT 3;\")",
-      "PowerShell(dotnet build \"c:\\\\LTR\\\\ParishBell\\\\Source_codes\\\\APIs\\\\ParishBell.API\\\\ParishBell.API.csproj\" -nologo -clp:NoSummary 2>&1)"
+      "PowerShell(dotnet build \"c:\\\\LTR\\\\ParishBell\\\\Source_codes\\\\APIs\\\\ParishBell.API\\\\ParishBell.API.csproj\" -nologo -clp:NoSummary 2>&1)",
+      "PowerShell(dotnet build ParishBell.slnx --nologo 2>&1)",
+      "PowerShell(dotnet test ParishBell.Tests/ParishBell.Tests.csproj --filter \"FullyQualifiedName~LiturgicalCalendarServiceTests\" --nologo 2>&1)"
     ]
   }
 }

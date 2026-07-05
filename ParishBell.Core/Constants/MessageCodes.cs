@@ -42,6 +42,8 @@ public static class MessageCodes
     public const string LocationUnfollowed = "PB-47";
     public const string LocationFollowStatusRetrieved = "PB-48";
     public const string FollowedLocationsRetrieved = "PB-49";
+    public const string LiturgicalCalendarRetrieved = "PB-50";
+    public const string LiturgicalCalendarInvalidFilter = "PB-51";
 
     // NOTE: Other
     public const string RateLimitExceeded = "PB-16";

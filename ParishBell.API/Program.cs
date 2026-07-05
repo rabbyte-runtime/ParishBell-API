@@ -90,6 +90,8 @@ builder.Services.AddScoped<IEventRepository, EventRepository>();
 builder.Services.AddScoped<IEventService, EventService>();
 builder.Services.AddScoped<ILocationFollowRepository, LocationFollowRepository>();
 builder.Services.AddScoped<ILocationFollowService, LocationFollowService>();
+builder.Services.AddScoped<ILiturgicalCalendarRepository, LiturgicalCalendarRepository>();
+builder.Services.AddScoped<ILiturgicalCalendarService, LiturgicalCalendarService>();
 
 // NOTE: Load user secrets
 if (builder.Environment.IsDevelopment())

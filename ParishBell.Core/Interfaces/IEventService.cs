@@ -12,4 +12,11 @@ public interface IEventService
         int? page,
         int? pageSize,
         CancellationToken ct = default);
+
+    Task<FollowedEventsCalendarDto> GetFollowedEventsAsync(
+        Guid userId,
+        string languageCode,
+        int month,
+        int year,
+        CancellationToken ct = default);
 }

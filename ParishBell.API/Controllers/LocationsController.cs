@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using ParishBell.API.Helpers;
 using ParishBell.Core.Constants;
+using ParishBell.Core.Exceptions;
 using ParishBell.Core.Interfaces;
 
 namespace ParishBell.API.Controllers;
@@ -72,6 +73,33 @@ public class LocationsController(ILocationService locationService, IEventService
         var userId = User.GetUserId();
         var result = await _locationService.GetFollowedLocationsAsync(userId, languageCode, page, pageSize, ct);
         var response = ApiResponseBuilder.Build(HttpContext, _messages, StatusCodes.Status200OK, MessageCodes.FollowedLocationsRetrieved, result);
+        return StatusCode(response.Status, response);
+    }
+
+    // NOTE: GET /api/v1/locations/followed/events
+    // IMPORTANT: Requires User JWT. Published events across every location the current user follows.
+    // NOTE: Optional ?month=(1-12) and ?year= filter to a single month for the calendar UI; both default to the current UTC month/year.
+    // NOTE: Returns a flat list ordered by date then start time, each entry tagged with its locationId and locationName.
+    [Authorize]
+    [HttpGet("followed/events")]
+    public async Task<IActionResult> GetFollowedEvents(
+        [FromHeader(Name = "Accept-Language")] string? acceptLanguage,
+        [FromQuery] int? month,
+        [FromQuery] int? year,
+        CancellationToken ct)
+    {
+        var languageCode = string.IsNullOrWhiteSpace(acceptLanguage) ? "en" : acceptLanguage.Trim();
+
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var resolvedMonth = month ?? today.Month;
+        var resolvedYear = year ?? today.Year;
+
+        if (resolvedMonth is < 1 or > 12 || resolvedYear is < 1 or > 9999)
+            throw new BadRequestException(MessageCodes.FollowedEventsInvalidFilter);
+
+        var userId = User.GetUserId();
+        var result = await _eventService.GetFollowedEventsAsync(userId, languageCode, resolvedMonth, resolvedYear, ct);
+        var response = ApiResponseBuilder.Build(HttpContext, _messages, StatusCodes.Status200OK, MessageCodes.FollowedEventsRetrieved, result);
         return StatusCode(response.Status, response);
     }
 

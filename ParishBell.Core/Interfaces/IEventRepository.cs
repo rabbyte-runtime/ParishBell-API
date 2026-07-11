@@ -12,4 +12,11 @@ public interface IEventRepository
         int? skip,
         int? take,
         CancellationToken ct = default);
+
+    Task<List<FollowedEventResult>> GetFollowedEventsAsync(
+        Guid userId,
+        string languageCode,
+        DateOnly fromDate,
+        DateOnly toDate,
+        CancellationToken ct = default);
 }

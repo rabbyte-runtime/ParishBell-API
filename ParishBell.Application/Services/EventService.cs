@@ -54,4 +54,43 @@ public class EventService(IEventRepository eventRepository) : IEventService
             HasMore = hasMore
         };
     }
+
+    public async Task<FollowedEventsCalendarDto> GetFollowedEventsAsync(
+        Guid userId,
+        string languageCode,
+        int month,
+        int year,
+        CancellationToken ct = default)
+    {
+        // NOTE: The calendar shows a whole month, so we bound the query to that month's first and last day.
+        var fromDate = new DateOnly(year, month, 1);
+        var toDate = new DateOnly(year, month, DateTime.DaysInMonth(year, month));
+
+        var results = await _eventRepository.GetFollowedEventsAsync(userId, languageCode, fromDate, toDate, ct);
+
+        var items = results.Select(r => new FollowedEventDto
+        {
+            EventId = r.EventId,
+            LocationId = r.LocationId,
+            LocationName = r.LocationName,
+            EventDate = r.EventDate.ToString("yyyy-MM-dd"),
+            StartTime = r.StartTime?.ToString("HH:mm"),
+            EndTime = r.EndTime?.ToString("HH:mm"),
+            Title = r.Title,
+            Description = r.Description,
+            Images = [.. r.Images.Select(i => new EventImageDto
+            {
+                EventImageId = i.EventImageId,
+                ImageUrl = i.ImageUrl,
+                SortOrder = i.SortOrder
+            })]
+        }).ToList();
+
+        return new FollowedEventsCalendarDto
+        {
+            Month = month,
+            Year = year,
+            Items = items
+        };
+    }
 }

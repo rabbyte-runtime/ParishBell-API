@@ -26,6 +26,19 @@ public partial class AnnouncementTranslation
     [StringLength(500)]
     public string? Caption { get; set; }
 
+    /// <summary>
+    /// Optional per-language headline shown in the channel list.
+    /// </summary>
+    [Column("title")]
+    [StringLength(255)]
+    public string? Title { get; set; }
+
+    /// <summary>
+    /// Optional per-language long-form body.
+    /// </summary>
+    [Column("description")]
+    public string? Description { get; set; }
+
     [ForeignKey("AnnouncementId")]
     [InverseProperty("AnnouncementTranslations")]
     public virtual Announcement Announcement { get; set; } = null!;

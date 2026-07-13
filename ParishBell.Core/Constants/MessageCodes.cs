@@ -46,6 +46,8 @@ public static class MessageCodes
     public const string LiturgicalCalendarInvalidFilter = "PB-51";
     public const string FollowedEventsRetrieved = "PB-52";
     public const string FollowedEventsInvalidFilter = "PB-53";
+    public const string LocationAnnouncementsRetrieved = "PB-54";
+    public const string LocationAnnouncementsForbidden = "PB-55";
 
     // NOTE: Other
     public const string RateLimitExceeded = "PB-16";

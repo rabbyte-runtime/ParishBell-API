@@ -100,6 +100,7 @@ public partial class ParishBellDbContext : DbContext
             entity.Property(e => e.IsActive).HasDefaultValue(true);
             entity.Property(e => e.MediaType).HasConversion<short>().HasComment("1=Audio, 2=Video.");
             entity.Property(e => e.MediaUrl).HasComment("Azure Blob Storage SAS URL for the audio/video file.");
+            entity.Property(e => e.ThumbnailUrl).HasComment("Azure Blob Storage URL for the video poster / audio cover art. NULL when none.");
 
             entity.HasOne(d => d.CreatedByNavigation).WithMany(p => p.Announcements)
                 .OnDelete(DeleteBehavior.Restrict)

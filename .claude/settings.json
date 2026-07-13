@@ -14,7 +14,10 @@
       "PowerShell(dotnet build ParishBell.slnx --nologo 2>&1)",
       "PowerShell(dotnet test ParishBell.Tests/ParishBell.Tests.csproj --filter \"FullyQualifiedName~LiturgicalCalendarServiceTests\" --nologo 2>&1)",
       "Bash(command -v psql)",
-      "Read(//c/Users/rajit/AppData/Roaming/Microsoft/UserSecrets/ParishBell-API-Development/**)"
+      "Read(//c/Users/rajit/AppData/Roaming/Microsoft/UserSecrets/ParishBell-API-Development/**)",
+      "PowerShell(dotnet build \"c:\\\\LTR\\\\ParishBell\\\\Source_codes\\\\APIs\\\\ParishBell.API\\\\ParishBell.API.csproj\" -clp:ErrorsOnly --nologo)",
+      "PowerShell(dotnet test \"c:\\\\LTR\\\\ParishBell\\\\Source_codes\\\\APIs\\\\ParishBell.Tests\\\\ParishBell.Tests.csproj\" --nologo --filter \"FullyQualifiedName~AnnouncementServiceTests\")",
+      "PowerShell(dotnet test \"c:\\\\LTR\\\\ParishBell\\\\Source_codes\\\\APIs\\\\ParishBell.Tests\\\\ParishBell.Tests.csproj\" --nologo)"
     ]
   }
 }

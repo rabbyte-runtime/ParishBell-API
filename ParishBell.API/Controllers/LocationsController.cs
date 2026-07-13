@@ -9,11 +9,12 @@ namespace ParishBell.API.Controllers;
 
 [ApiController]
 [Route("api/v1/locations")]
-public class LocationsController(ILocationService locationService, IEventService eventService, ILocationFollowService followService, IMessageCache messages) : ControllerBase
+public class LocationsController(ILocationService locationService, IEventService eventService, ILocationFollowService followService, IAnnouncementService announcementService, IMessageCache messages) : ControllerBase
 {
     private readonly ILocationService _locationService = locationService;
     private readonly IEventService _eventService = eventService;
     private readonly ILocationFollowService _followService = followService;
+    private readonly IAnnouncementService _announcementService = announcementService;
     private readonly IMessageCache _messages = messages;
 
     // NOTE: GET /api/v1/locations/{locationId}
@@ -44,6 +45,26 @@ public class LocationsController(ILocationService locationService, IEventService
         var languageCode = string.IsNullOrWhiteSpace(acceptLanguage) ? "en" : acceptLanguage.Trim();
         var result = await _eventService.GetLocationEventsAsync(locationId, languageCode, fromDate, toDate, page, pageSize, ct);
         var response = ApiResponseBuilder.Build(HttpContext, _messages, StatusCodes.Status200OK, MessageCodes.LocationEventsRetrieved, result);
+        return StatusCode(response.Status, response);
+    }
+
+    // NOTE: GET /api/v1/locations/{locationId}/announcements
+    // IMPORTANT: Requires User JWT. Joined-members-only channel — 403 if the caller doesn't follow the location.
+    // NOTE: Time-limited audio/video posts, newest first. Expired posts are filtered out server-side.
+    // NOTE: Supply page + pageSize (default 20) to lazy-load; omit both to return the full active list.
+    [Authorize]
+    [HttpGet("{locationId:guid}/announcements")]
+    public async Task<IActionResult> GetLocationAnnouncements(
+        Guid locationId,
+        [FromHeader(Name = "Accept-Language")] string? acceptLanguage,
+        [FromQuery] int? page,
+        [FromQuery] int? pageSize,
+        CancellationToken ct)
+    {
+        var languageCode = string.IsNullOrWhiteSpace(acceptLanguage) ? "en" : acceptLanguage.Trim();
+        var userId = User.GetUserId();
+        var result = await _announcementService.GetLocationAnnouncementsAsync(userId, locationId, languageCode, page, pageSize, ct);
+        var response = ApiResponseBuilder.Build(HttpContext, _messages, StatusCodes.Status200OK, MessageCodes.LocationAnnouncementsRetrieved, result);
         return StatusCode(response.Status, response);
     }
 

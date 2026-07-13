@@ -63,8 +63,5 @@ nunit-*.xml
 /ParishBell.Core/ParishBell.Core.csproj.lscache
 /ParishBell.Tests/ParishBell.Tests.csproj.lscache
 
-# Claude Code
-.claude/
-
 # VS Code
 .vscode/

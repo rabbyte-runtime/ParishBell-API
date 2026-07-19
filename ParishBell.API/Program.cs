@@ -14,6 +14,7 @@ using ParishBell.Infrastructure.BackgroundJobs;
 using ParishBell.Infrastructure.Caching;
 using ParishBell.Infrastructure.Data;
 using ParishBell.Infrastructure.Email;
+using ParishBell.Infrastructure.Push;
 using ParishBell.Infrastructure.Repositories;
 using ParishBell.Infrastructure.Security;
 
@@ -46,6 +47,11 @@ builder.Services.AddScoped<IMessageCache, MessageCache>();
 
 // NOTE: Register email service
 builder.Services.AddScoped<IEmailService, SendGridEmailService>();
+
+// NOTE: Firebase Cloud Messaging (push notifications) — credentials come from user-secrets
+builder.Services.Configure<FcmSettings>(builder.Configuration.GetSection("Fcm"));
+builder.Services.AddSingleton<FirebaseAppInitializer>();
+builder.Services.AddScoped<IPushNotificationService, FcmPushNotificationService>();
 
 // NOTE: Add hosted services
 builder.Services.AddHostedService<MessageCacheStartupService>();

@@ -456,6 +456,7 @@ public partial class ParishBellDbContext : DbContext
                 .HasDefaultValueSql("now()")
                 .HasComment("Tokens inactive > 90 days are pruned by background job.");
             entity.Property(e => e.Platform).HasConversion<short>().HasComment("1=iOS (APNs), 2=Android (FCM).");
+            entity.Property(e => e.AppVersion).HasComment("Client app version at registration time, e.g. \"1.0.0\". NULL when not supplied.");
             entity.Property(e => e.RegisteredAt).HasDefaultValueSql("now()");
 
             entity.HasOne(d => d.User).WithMany(p => p.UserDevices).HasConstraintName("fk_ud_user");

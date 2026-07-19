@@ -48,6 +48,8 @@ public static class MessageCodes
     public const string FollowedEventsInvalidFilter = "PB-53";
     public const string LocationAnnouncementsRetrieved = "PB-54";
     public const string LocationAnnouncementsForbidden = "PB-55";
+    public const string DeviceTokenRegistered = "PB-56";
+    public const string DeviceTokenRemoved = "PB-57";
 
     // NOTE: Other
     public const string RateLimitExceeded = "PB-16";
@@ -62,4 +64,7 @@ public static class MessageCodes
     public const string ValidationConfirmPasswordRequired = "PB-23";
     public const string ValidationPreferredLanguageRequired = "PB-24";
     public const string ValidationProviderRequired = "PB-28";
+    public const string ValidationDeviceTokenRequired = "PB-58";
+    public const string ValidationDevicePlatformInvalid = "PB-59";
+    public const string ValidationAppVersionTooLong = "PB-60";
 }

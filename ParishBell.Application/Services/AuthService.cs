@@ -18,7 +18,8 @@ public partial class AuthService(
     IEmailService emailService,
     IOptions<PasswordResetSettings> passwordResetOptions,
     IMessageCache messageCache,
-    IEnumerable<IExternalAuthValidator> externalAuthValidators) : IAuthService
+    IEnumerable<IExternalAuthValidator> externalAuthValidators,
+    IUserDeviceRepository userDeviceRepository) : IAuthService
 {
     // NOTE: Dependencies for authentication
     private readonly IAuthRepository _authRepository = authRepository;
@@ -28,6 +29,7 @@ public partial class AuthService(
     private readonly IEmailService _emailService = emailService;
     private readonly PasswordResetSettings _passwordResetSettings = passwordResetOptions.Value;
     private readonly IMessageCache _messageCache = messageCache;
+    private readonly IUserDeviceRepository _userDeviceRepository = userDeviceRepository;
 
     // NOTE: All registered external auth validators (Google only as of now)
     private readonly IEnumerable<IExternalAuthValidator> _externalAuthValidators = externalAuthValidators;
@@ -322,6 +324,11 @@ public partial class AuthService(
 
         // NOTE: Revoke this single refresh token
         await _authRepository.RevokeRefreshTokenAsync(storedToken.RefreshTokenId, ct);
+
+        // NOTE: Prune the signed-out device's push token when supplied, scoped to this token's owner
+        //       so it stops receiving notifications. No-op if it isn't registered to this user.
+        if (!string.IsNullOrWhiteSpace(request.DeviceToken))
+            await _userDeviceRepository.RemoveByTokenAsync(storedToken.UserId, request.DeviceToken.Trim(), ct);
     }
 
     public async Task ForgotPasswordAsync(ForgotPasswordRequestDto request, string ipAddress, CancellationToken ct = default)

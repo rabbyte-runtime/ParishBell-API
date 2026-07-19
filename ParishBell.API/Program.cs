@@ -92,6 +92,8 @@ builder.Services.AddScoped<ILocationFollowRepository, LocationFollowRepository>(
 builder.Services.AddScoped<ILocationFollowService, LocationFollowService>();
 builder.Services.AddScoped<IAnnouncementRepository, AnnouncementRepository>();
 builder.Services.AddScoped<IAnnouncementService, AnnouncementService>();
+builder.Services.AddScoped<IUserDeviceRepository, UserDeviceRepository>();
+builder.Services.AddScoped<IUserDeviceService, UserDeviceService>();
 builder.Services.AddScoped<ILiturgicalCalendarRepository, LiturgicalCalendarRepository>();
 builder.Services.AddScoped<ILiturgicalCalendarService, LiturgicalCalendarService>();
 

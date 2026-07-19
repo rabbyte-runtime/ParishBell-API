@@ -30,6 +30,13 @@ public partial class UserDevice
     [Column("platform")]
     public short Platform { get; set; }
 
+    /// <summary>
+    /// Client app version at registration time, e.g. "1.0.0". Optional; used for debugging and version-targeted pushes.
+    /// </summary>
+    [Column("app_version")]
+    [StringLength(20)]
+    public string? AppVersion { get; set; }
+
     [Column("registered_at")]
     public DateTime RegisteredAt { get; set; }
 

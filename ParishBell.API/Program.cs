@@ -53,6 +53,15 @@ builder.Services.Configure<FcmSettings>(builder.Configuration.GetSection("Fcm"))
 builder.Services.AddSingleton<FirebaseAppInitializer>();
 builder.Services.AddScoped<IPushNotificationService, FcmPushNotificationService>();
 
+// NOTE: Announcement push fan-out — background outbox over notifications_log. Announcements are
+//       authored in the admin backend (shared DB); this job notifies each location's followers.
+var announcementPushSettings = builder.Configuration.GetSection("AnnouncementPush").Get<AnnouncementPushSettings>()
+    ?? new AnnouncementPushSettings();
+builder.Services.AddSingleton(announcementPushSettings);
+builder.Services.AddScoped<IAnnouncementNotificationRepository, AnnouncementNotificationRepository>();
+builder.Services.AddScoped<IAnnouncementNotificationService, AnnouncementNotificationService>();
+builder.Services.AddHostedService<AnnouncementPushJob>();
+
 // NOTE: Add hosted services
 builder.Services.AddHostedService<MessageCacheStartupService>();
 builder.Services.AddHostedService<MessageCacheRefreshJob>();

@@ -1,16 +1,27 @@
 using ParishBell.Core.Constants;
 using ParishBell.Core.DTOs.Common;
 using ParishBell.Core.DTOs.User;
+using ParishBell.Core.Entities;
 using ParishBell.Core.Enums;
 using ParishBell.Core.Exceptions;
 using ParishBell.Core.Interfaces;
 
 namespace ParishBell.Application.Services;
 
-public class UserService(IUserRepository userRepository, ILanguageRepository languageRepository) : IUserService
+public class UserService(
+    IUserRepository userRepository,
+    ILanguageRepository languageRepository,
+    IAuthRepository authRepository,
+    IPasswordHasher passwordHasher,
+    IEnumerable<IExternalAuthValidator> externalAuthValidators) : IUserService
 {
     private readonly IUserRepository _userRepository = userRepository;
     private readonly ILanguageRepository _languageRepository = languageRepository;
+
+    // NOTE: Deletion re-checks the sign-up credential, so it needs the auth-side pieces too.
+    private readonly IAuthRepository _authRepository = authRepository;
+    private readonly IPasswordHasher _passwordHasher = passwordHasher;
+    private readonly IEnumerable<IExternalAuthValidator> _externalAuthValidators = externalAuthValidators;
 
     public async Task<UserProfileDto> GetProfileAsync(Guid userId, CancellationToken ct = default)
     {
@@ -37,6 +48,62 @@ public class UserService(IUserRepository userRepository, ILanguageRepository lan
         return MapToDto(updated);
     }
 
+    public async Task DeleteAccountAsync(Guid userId, DeleteAccountRequestDto request, CancellationToken ct = default)
+    {
+        // NOTE: The entity, not the profile projection - the credential check needs the password hash and provider id.
+        var user = await _authRepository.GetUserByIdAsync(userId, ct)
+            ?? throw new NotFoundException(MessageCodes.GeneralNotFound);
+
+        if (!user.IsActive)
+            throw new UnauthorizedException(MessageCodes.AuthAccountInactive);
+
+        // IMPORTANT: Confirm with the credential this account actually signed up with - an email user cannot delete by presenting a Google token, and vice versa.
+        if (request.Provider != (AuthProvider)user.AuthProvider)
+            throw new UnauthorizedException(MessageCodes.AuthWrongProvider);
+
+        switch (request.Provider)
+        {
+            case AuthProvider.Email:
+                ConfirmWithPassword(user, request);
+                break;
+            case AuthProvider.Google:
+                await ConfirmWithSocialTokenAsync(user, request, AuthProvider.Google, ct);
+                break;
+            default:
+                // NOTE: Apple sign-in is not implemented yet, so no Apple account can exist to delete.
+                throw new BadRequestException(MessageCodes.AuthUnsupportedProvider);
+        }
+
+        await _userRepository.DeleteAccountAsync(userId, ct);
+    }
+
+    // NOTE: Email accounts confirm with their current password.
+    private void ConfirmWithPassword(AppUser user, DeleteAccountRequestDto request)
+    {
+        if (string.IsNullOrWhiteSpace(request.Password))
+            throw new BadRequestException(MessageCodes.ValidationPasswordRequired);
+
+        if (string.IsNullOrEmpty(user.PasswordHash) || !_passwordHasher.Verify(request.Password, user.PasswordHash))
+            throw new UnauthorizedException(MessageCodes.AuthInvalidCredentials);
+    }
+
+    // NOTE: Social accounts confirm with a freshly issued ID token from their provider.
+    private async Task ConfirmWithSocialTokenAsync(AppUser user, DeleteAccountRequestDto request, AuthProvider provider, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(request.IdToken))
+            throw new BadRequestException(MessageCodes.AuthInvalidSocialToken);
+
+        var validator = _externalAuthValidators.FirstOrDefault(v => v.Provider == provider)
+            ?? throw new BadRequestException(MessageCodes.AuthUnsupportedProvider);
+
+        // NOTE: Verifies signature, expiry, audience and email_verified.
+        var verifiedInfo = await validator.ValidateAsync(request.IdToken, ct);
+
+        // IMPORTANT: A valid token still has to belong to *this* account - otherwise anyone with a Google account and a stolen access token could delete someone else's.
+        if (!string.Equals(verifiedInfo.ProviderUserId, user.AuthProviderId, StringComparison.Ordinal))
+            throw new UnauthorizedException(MessageCodes.AuthInvalidCredentials);
+    }
+
     // NOTE: Null when the name was left out or already matches; trimmed value otherwise.
     private static string? ResolveFullName(UpdateProfileRequestDto request)
     {
@@ -61,8 +128,7 @@ public class UserService(IUserRepository userRepository, ILanguageRepository lan
 
         if (email == current.Email) return null;
 
-        // IMPORTANT: Social accounts are keyed to the provider's subject and the email belongs to that provider.
-        //            Changing it here would silently desync the two, so the change is refused outright.
+        // IMPORTANT: Social accounts are keyed to the provider's subject and the email belongs to that provider. Changing it here would silently desync the two, so the change is refused outright.
         if (current.AuthProvider != (short)AuthProvider.Email)
             throw new ForbiddenException(MessageCodes.UserEmailChangeNotAllowed);
 

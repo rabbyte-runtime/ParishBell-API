@@ -3,6 +3,7 @@ using ParishBell.Application.Services;
 using ParishBell.Core.Constants;
 using ParishBell.Core.DTOs.Common;
 using ParishBell.Core.DTOs.User;
+using ParishBell.Core.Entities;
 using ParishBell.Core.Enums;
 using ParishBell.Core.Exceptions;
 using ParishBell.Core.Interfaces;
@@ -13,16 +14,32 @@ public class UserServiceTests
 {
     private readonly Mock<IUserRepository> _mockRepo;
     private readonly Mock<ILanguageRepository> _mockLanguageRepo;
+    private readonly Mock<IAuthRepository> _mockAuthRepo;
+    private readonly Mock<IPasswordHasher> _mockHasher;
+    private readonly Mock<IExternalAuthValidator> _mockGoogleValidator;
     private readonly UserService _service;
 
     private readonly Guid _userId = Guid.NewGuid();
     private readonly Guid _languageId = Guid.NewGuid();
 
+    private const string GoogleSubject = "google-sub-12345";
+
     public UserServiceTests()
     {
         _mockRepo = new Mock<IUserRepository>();
         _mockLanguageRepo = new Mock<ILanguageRepository>();
-        _service = new UserService(_mockRepo.Object, _mockLanguageRepo.Object);
+        _mockAuthRepo = new Mock<IAuthRepository>();
+        _mockHasher = new Mock<IPasswordHasher>();
+
+        _mockGoogleValidator = new Mock<IExternalAuthValidator>();
+        _mockGoogleValidator.SetupGet(v => v.Provider).Returns(AuthProvider.Google);
+
+        _service = new UserService(
+            _mockRepo.Object,
+            _mockLanguageRepo.Object,
+            _mockAuthRepo.Object,
+            _mockHasher.Object,
+            [_mockGoogleValidator.Object]);
     }
 
     private UserProfileResult MakeResult(
@@ -308,5 +325,223 @@ public class UserServiceTests
             () => _service.UpdateProfileAsync(_userId, new UpdateProfileRequestDto { FullName = "Rajitha D." }));
         Assert.Equal(MessageCodes.AuthAccountInactive, exception.MessageCode);
         VerifyNoWrite();
+    }
+
+    // NOTE: The stored account the delete request is checked against.
+    private void SetupAccount(short authProvider = 1, string? passwordHash = "bcrypt-hash", string? authProviderId = null, bool isActive = true) =>
+        _mockAuthRepo
+            .Setup(r => r.GetUserByIdAsync(_userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AppUser
+            {
+                UserId = _userId,
+                FullName = "Rajitha Dassanayake",
+                Email = "rajitha@example.com",
+                PasswordHash = passwordHash,
+                AuthProvider = authProvider,
+                AuthProviderId = authProviderId,
+                PreferredLanguage = _languageId,
+                IsActive = isActive
+            });
+
+    private void SetupGoogleTokenResolvesTo(string providerUserId) =>
+        _mockGoogleValidator
+            .Setup(v => v.ValidateAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ExternalAuthResult
+            {
+                ProviderUserId = providerUserId,
+                Email = "rajitha@example.com",
+                FullName = "Rajitha Dassanayake",
+                EmailVerified = true
+            });
+
+    // NOTE: The account survived.
+    private void VerifyNoDelete() =>
+        _mockRepo.Verify(r => r.DeleteAccountAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+
+    // IMPORTANT: TEST 16 - Email account deletes once the current password checks out
+    [Fact]
+    public async Task DeleteAccount_EmailAccount_WithCorrectPassword_Deletes()
+    {
+        // NOTE: Arrange
+        SetupAccount();
+        _mockHasher.Setup(h => h.Verify("Correct1", "bcrypt-hash")).Returns(true);
+
+        // NOTE: Act
+        await _service.DeleteAccountAsync(_userId, new DeleteAccountRequestDto
+        {
+            Provider = AuthProvider.Email,
+            Password = "Correct1"
+        });
+
+        // NOTE: Assert
+        _mockRepo.Verify(r => r.DeleteAccountAsync(_userId, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    // IMPORTANT: TEST 17 - A wrong password leaves the account standing
+    [Fact]
+    public async Task DeleteAccount_WrongPassword_ThrowsUnauthorized()
+    {
+        // NOTE: Arrange
+        SetupAccount();
+        _mockHasher.Setup(h => h.Verify(It.IsAny<string>(), It.IsAny<string>())).Returns(false);
+
+        // NOTE: Act & Assert
+        var exception = await Assert.ThrowsAsync<UnauthorizedException>(
+            () => _service.DeleteAccountAsync(_userId, new DeleteAccountRequestDto
+            {
+                Provider = AuthProvider.Email,
+                Password = "Wrong1234"
+            }));
+        Assert.Equal(MessageCodes.AuthInvalidCredentials, exception.MessageCode);
+        VerifyNoDelete();
+    }
+
+    // IMPORTANT: TEST 18 - The JWT alone is not enough; the password field is required
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public async Task DeleteAccount_WithoutPassword_ThrowsBadRequest(string? password)
+    {
+        // NOTE: Arrange
+        SetupAccount();
+
+        // NOTE: Act & Assert
+        var exception = await Assert.ThrowsAsync<BadRequestException>(
+            () => _service.DeleteAccountAsync(_userId, new DeleteAccountRequestDto
+            {
+                Provider = AuthProvider.Email,
+                Password = password
+            }));
+        Assert.Equal(MessageCodes.ValidationPasswordRequired, exception.MessageCode);
+        VerifyNoDelete();
+    }
+
+    // IMPORTANT: TEST 19 - The confirmation must use the provider the account was created with
+    [Fact]
+    public async Task DeleteAccount_ProviderMismatch_ThrowsUnauthorized()
+    {
+        // NOTE: Arrange — an email account presenting a Google token
+        SetupAccount();
+
+        // NOTE: Act & Assert
+        var exception = await Assert.ThrowsAsync<UnauthorizedException>(
+            () => _service.DeleteAccountAsync(_userId, new DeleteAccountRequestDto
+            {
+                Provider = AuthProvider.Google,
+                IdToken = "eyJ-token"
+            }));
+        Assert.Equal(MessageCodes.AuthWrongProvider, exception.MessageCode);
+        VerifyNoDelete();
+    }
+
+    // IMPORTANT: TEST 20 - Google account deletes when the fresh token resolves to its own subject
+    [Fact]
+    public async Task DeleteAccount_GoogleAccount_WithMatchingToken_Deletes()
+    {
+        // NOTE: Arrange
+        SetupAccount(authProvider: 2, passwordHash: null, authProviderId: GoogleSubject);
+        SetupGoogleTokenResolvesTo(GoogleSubject);
+
+        // NOTE: Act
+        await _service.DeleteAccountAsync(_userId, new DeleteAccountRequestDto
+        {
+            Provider = AuthProvider.Google,
+            IdToken = "eyJ-token"
+        });
+
+        // NOTE: Assert
+        _mockRepo.Verify(r => r.DeleteAccountAsync(_userId, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    // IMPORTANT: TEST 21 - A valid Google token belonging to someone else cannot delete this account
+    [Fact]
+    public async Task DeleteAccount_GoogleTokenForAnotherSubject_ThrowsUnauthorized()
+    {
+        // NOTE: Arrange
+        SetupAccount(authProvider: 2, passwordHash: null, authProviderId: GoogleSubject);
+        SetupGoogleTokenResolvesTo("google-sub-somebody-else");
+
+        // NOTE: Act & Assert
+        var exception = await Assert.ThrowsAsync<UnauthorizedException>(
+            () => _service.DeleteAccountAsync(_userId, new DeleteAccountRequestDto
+            {
+                Provider = AuthProvider.Google,
+                IdToken = "eyJ-token"
+            }));
+        Assert.Equal(MessageCodes.AuthInvalidCredentials, exception.MessageCode);
+        VerifyNoDelete();
+    }
+
+    // IMPORTANT: TEST 22 - A Google account must supply a token, and it is never validated when blank
+    [Fact]
+    public async Task DeleteAccount_GoogleAccount_WithoutIdToken_ThrowsBadRequest()
+    {
+        // NOTE: Arrange
+        SetupAccount(authProvider: 2, passwordHash: null, authProviderId: GoogleSubject);
+
+        // NOTE: Act & Assert
+        var exception = await Assert.ThrowsAsync<BadRequestException>(
+            () => _service.DeleteAccountAsync(_userId, new DeleteAccountRequestDto { Provider = AuthProvider.Google }));
+        Assert.Equal(MessageCodes.AuthInvalidSocialToken, exception.MessageCode);
+        _mockGoogleValidator.Verify(v => v.ValidateAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+        VerifyNoDelete();
+    }
+
+    // IMPORTANT: TEST 23 - Apple has no validator yet, so it is refused rather than silently deleting
+    [Fact]
+    public async Task DeleteAccount_AppleAccount_ThrowsBadRequest()
+    {
+        // NOTE: Arrange
+        SetupAccount(authProvider: 3, passwordHash: null, authProviderId: "apple-sub");
+
+        // NOTE: Act & Assert
+        var exception = await Assert.ThrowsAsync<BadRequestException>(
+            () => _service.DeleteAccountAsync(_userId, new DeleteAccountRequestDto
+            {
+                Provider = AuthProvider.Apple,
+                IdToken = "eyJ-token"
+            }));
+        Assert.Equal(MessageCodes.AuthUnsupportedProvider, exception.MessageCode);
+        VerifyNoDelete();
+    }
+
+    // IMPORTANT: TEST 24 - Deleting an account that is already gone is a 404, not a second delete
+    [Fact]
+    public async Task DeleteAccount_WhenUserMissing_ThrowsNotFound()
+    {
+        // NOTE: Arrange
+        _mockAuthRepo
+            .Setup(r => r.GetUserByIdAsync(_userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((AppUser?)null);
+
+        // NOTE: Act & Assert
+        var exception = await Assert.ThrowsAsync<NotFoundException>(
+            () => _service.DeleteAccountAsync(_userId, new DeleteAccountRequestDto
+            {
+                Provider = AuthProvider.Email,
+                Password = "Correct1"
+            }));
+        Assert.Equal(MessageCodes.GeneralNotFound, exception.MessageCode);
+        VerifyNoDelete();
+    }
+
+    // IMPORTANT: TEST 25 - A deactivated account is rejected before the credential is even checked
+    [Fact]
+    public async Task DeleteAccount_WhenAccountInactive_ThrowsUnauthorized()
+    {
+        // NOTE: Arrange
+        SetupAccount(isActive: false);
+
+        // NOTE: Act & Assert
+        var exception = await Assert.ThrowsAsync<UnauthorizedException>(
+            () => _service.DeleteAccountAsync(_userId, new DeleteAccountRequestDto
+            {
+                Provider = AuthProvider.Email,
+                Password = "Correct1"
+            }));
+        Assert.Equal(MessageCodes.AuthAccountInactive, exception.MessageCode);
+        _mockHasher.Verify(h => h.Verify(It.IsAny<string>(), It.IsAny<string>()), Times.Never);
+        VerifyNoDelete();
     }
 }

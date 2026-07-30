@@ -10,4 +10,7 @@ public interface IUserService
     // NOTE: Applies the supplied fields to the signed-in user and returns the stored profile.
     //       Omitted fields are left alone; a request that changes nothing is a no-op.
     Task<UserProfileDto> UpdateProfileAsync(Guid userId, UpdateProfileRequestDto request, CancellationToken ct = default);
+
+    // IMPORTANT: Permanently deletes the signed-in user, but only after they re-prove their credential.
+    Task DeleteAccountAsync(Guid userId, DeleteAccountRequestDto request, CancellationToken ct = default);
 }

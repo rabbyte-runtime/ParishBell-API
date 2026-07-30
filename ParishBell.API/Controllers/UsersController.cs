@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using ParishBell.API.Helpers;
 using ParishBell.Core.Constants;
 using ParishBell.Core.DTOs.User;
@@ -38,6 +39,21 @@ public class UsersController(IUserService userService, IUserDeviceService device
         var userId = User.GetUserId();
         var result = await _userService.UpdateProfileAsync(userId, request, ct);
         var response = ApiResponseBuilder.Build(HttpContext, _messages, StatusCodes.Status200OK, MessageCodes.UserProfileUpdated, result);
+        return StatusCode(response.Status, response);
+    }
+
+    // NOTE: DELETE /api/v1/users/me
+    // IMPORTANT: Requires User JWT *and* the account's own credential - password for Email accounts, a fresh ID token for Google.
+    // IMPORTANT: Permanent. The user row and everything hanging off it (devices, follows, reminders, tokens, notification log) is removed.
+    // NOTE: Rate limited like the auth endpoints - it verifies a password, so it is a brute-force target.
+    // NOTE: 401 on a wrong credential or the wrong provider, 400 when the confirmation field for that provider is missing.
+    [EnableRateLimiting("auth")]
+    [HttpDelete("me")]
+    public async Task<IActionResult> DeleteMe([FromBody] DeleteAccountRequestDto request, CancellationToken ct)
+    {
+        var userId = User.GetUserId();
+        await _userService.DeleteAccountAsync(userId, request, ct);
+        var response = ApiResponseBuilder.Build<object?>(HttpContext, _messages, StatusCodes.Status200OK, MessageCodes.UserAccountDeleted, null);
         return StatusCode(response.Status, response);
     }
 

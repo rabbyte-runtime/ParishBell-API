@@ -53,6 +53,7 @@ public static class MessageCodes
     public const string UserProfileRetrieved = "PB-61";
     public const string UserProfileUpdated = "PB-62";
     public const string UserEmailChangeNotAllowed = "PB-63";
+    public const string UserAccountDeleted = "PB-65";
 
     // NOTE: Other
     public const string RateLimitExceeded = "PB-16";

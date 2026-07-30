@@ -13,4 +13,7 @@ public interface IUserRepository
 
     // NOTE: Writes only the non-null arguments; nulls mean "leave unchanged". No-op when the user row is gone.
     Task UpdateProfileAsync(Guid userId, string? fullName, string? email, Guid? preferredLanguage, CancellationToken ct = default);
+
+    // IMPORTANT: Permanently removes the user and everything hanging off them, in one transaction. Not recoverable.
+    Task DeleteAccountAsync(Guid userId, CancellationToken ct = default);
 }

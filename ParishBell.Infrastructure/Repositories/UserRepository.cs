@@ -60,4 +60,21 @@ public class UserRepository(ParishBellDbContext dbContext) : IUserRepository
             throw new ConflictException(MessageCodes.AuthEmailAlreadyExists);
         }
     }
+
+    public async Task DeleteAccountAsync(Guid userId, CancellationToken ct = default)
+    {
+        // IMPORTANT: The children are removed explicitly rather than leaning on the FKs' ON DELETE behaviour
+        await using var transaction = await _dbContext.Database.BeginTransactionAsync(ct);
+
+        // NOTE: Devices go first so the fan-out job can no longer pick this user up mid-delete.
+        await _dbContext.UserDevices.Where(d => d.UserId == userId).ExecuteDeleteAsync(ct);
+        await _dbContext.UserFollowedLocations.Where(f => f.UserId == userId).ExecuteDeleteAsync(ct);
+        await _dbContext.UserMassReminders.Where(r => r.UserId == userId).ExecuteDeleteAsync(ct);
+        await _dbContext.NotificationsLogs.Where(n => n.UserId == userId).ExecuteDeleteAsync(ct);
+        await _dbContext.RefreshTokens.Where(t => t.UserId == userId).ExecuteDeleteAsync(ct);
+        await _dbContext.PasswordResetTokens.Where(t => t.UserId == userId).ExecuteDeleteAsync(ct);
+        await _dbContext.AppUsers.Where(u => u.UserId == userId).ExecuteDeleteAsync(ct);
+
+        await transaction.CommitAsync(ct);
+    }
 }

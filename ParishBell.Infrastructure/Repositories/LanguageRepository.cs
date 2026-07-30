@@ -13,4 +13,9 @@ public class LanguageRepository(ParishBellDbContext dbContext) : ILanguageReposi
     {
         return await _dbContext.Languages.AsNoTracking().Where(l => l.IsActive).OrderBy(l => l.LanguageName).ToListAsync(ct);
     }
+
+    public async Task<bool> IsActiveLanguageAsync(Guid languageId, CancellationToken ct = default)
+    {
+        return await _dbContext.Languages.AsNoTracking().AnyAsync(l => l.LanguageId == languageId && l.IsActive, ct);
+    }
 }

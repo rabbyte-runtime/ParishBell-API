@@ -51,6 +51,8 @@ public static class MessageCodes
     public const string DeviceTokenRegistered = "PB-56";
     public const string DeviceTokenRemoved = "PB-57";
     public const string UserProfileRetrieved = "PB-61";
+    public const string UserProfileUpdated = "PB-62";
+    public const string UserEmailChangeNotAllowed = "PB-63";
 
     // NOTE: Other
     public const string RateLimitExceeded = "PB-16";
@@ -68,4 +70,5 @@ public static class MessageCodes
     public const string ValidationDeviceTokenRequired = "PB-58";
     public const string ValidationDevicePlatformInvalid = "PB-59";
     public const string ValidationAppVersionTooLong = "PB-60";
+    public const string ValidationPreferredLanguageInvalid = "PB-64";
 }

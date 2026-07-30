@@ -28,6 +28,19 @@ public class UsersController(IUserService userService, IUserDeviceService device
         return StatusCode(response.Status, response);
     }
 
+    // NOTE: PUT /api/v1/users/me
+    // IMPORTANT: Requires User JWT. Edits the token's own user - the caller cannot update another.
+    // NOTE: Partial update - fields left out (or null) keep their stored value. Returns the saved profile so the app can rebind.
+    // NOTE: 403 when a Google/Apple user tries to change their email, 409 when the address is taken, 400 for an unknown language.
+    [HttpPut("me")]
+    public async Task<IActionResult> UpdateMe([FromBody] UpdateProfileRequestDto request, CancellationToken ct)
+    {
+        var userId = User.GetUserId();
+        var result = await _userService.UpdateProfileAsync(userId, request, ct);
+        var response = ApiResponseBuilder.Build(HttpContext, _messages, StatusCodes.Status200OK, MessageCodes.UserProfileUpdated, result);
+        return StatusCode(response.Status, response);
+    }
+
     // NOTE: PUT /api/v1/users/me/device-token
     // IMPORTANT: Requires User JWT. Idempotent upsert keyed by the globally-unique device token - re-registering the same token (even from another account) re-points it to the caller.
     [HttpPut("me/device-token")]

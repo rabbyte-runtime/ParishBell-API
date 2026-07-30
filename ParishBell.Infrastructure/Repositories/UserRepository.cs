@@ -29,7 +29,11 @@ public class UserRepository(ParishBellDbContext dbContext) : IUserRepository
                 u.PreferredLanguage,
                 u.PreferredLanguageNavigation.LanguageCode,
                 u.PreferredLanguageNavigation.LanguageName,
-                u.PreferredLanguageNavigation.NativeName))
+                u.PreferredLanguageNavigation.NativeName,
+                u.NotifyEvents,
+                u.NotifyAnnouncements,
+                u.NotifyMassReminders,
+                u.NotifyFeastDays))
             .FirstOrDefaultAsync(ct);
     }
 
@@ -59,6 +63,20 @@ public class UserRepository(ParishBellDbContext dbContext) : IUserRepository
             // NOTE: The caller already checked the address was free. A failure here means a concurrent request claimed it first - uq_app_users_email is the only constraint this write can break.
             throw new ConflictException(MessageCodes.AuthEmailAlreadyExists);
         }
+    }
+
+    public async Task UpdateNotificationPreferencesAsync(Guid userId, bool? events, bool? announcements, bool? massReminders, bool? feastDays, CancellationToken ct = default)
+    {
+        var user = await _dbContext.AppUsers.FirstOrDefaultAsync(u => u.UserId == userId, ct);
+        if (user is null) return;
+
+        // NOTE: Null means the caller left the switch out - only supplied values are written.
+        if (events.HasValue) user.NotifyEvents = events.Value;
+        if (announcements.HasValue) user.NotifyAnnouncements = announcements.Value;
+        if (massReminders.HasValue) user.NotifyMassReminders = massReminders.Value;
+        if (feastDays.HasValue) user.NotifyFeastDays = feastDays.Value;
+
+        await _dbContext.SaveChangesAsync(ct);
     }
 
     public async Task DeleteAccountAsync(Guid userId, CancellationToken ct = default)

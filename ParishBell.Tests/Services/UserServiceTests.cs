@@ -46,7 +46,11 @@ public class UserServiceTests
         short authProvider = 1,
         bool isActive = true,
         string? profileImageUrl = "https://blob/avatar.jpg",
-        DateTime? lastLoginAt = null) =>
+        DateTime? lastLoginAt = null,
+        bool notifyEvents = true,
+        bool notifyAnnouncements = true,
+        bool notifyMassReminders = true,
+        bool notifyFeastDays = true) =>
         new(
             _userId,
             "Rajitha Dassanayake",
@@ -59,7 +63,11 @@ public class UserServiceTests
             _languageId,
             "si",
             "Sinhala",
-            "සිංහල");
+            "සිංහල",
+            notifyEvents,
+            notifyAnnouncements,
+            notifyMassReminders,
+            notifyFeastDays);
 
     private void SetupRepoReturns(UserProfileResult? result) =>
         _mockRepo
@@ -292,7 +300,8 @@ public class UserServiceTests
         var updated = new UserProfileResult(
             _userId, "Rajitha Dassanayake", "rajitha@example.com", null, 1, true,
             new DateTime(2026, 1, 4, 6, 15, 0, DateTimeKind.Utc), null,
-            newLanguageId, "ta", "Tamil", "தமிழ்");
+            newLanguageId, "ta", "Tamil", "தமிழ்",
+            true, true, true, true);
 
         _mockRepo
             .SetupSequence(r => r.GetProfileAsync(_userId, It.IsAny<CancellationToken>()))
@@ -327,6 +336,124 @@ public class UserServiceTests
         VerifyNoWrite();
     }
 
+    // NOTE: No preference switch reached the DB.
+    private void VerifyNoPreferenceWrite() =>
+        _mockRepo.Verify(r => r.UpdateNotificationPreferencesAsync(
+            It.IsAny<Guid>(), It.IsAny<bool?>(), It.IsAny<bool?>(), It.IsAny<bool?>(), It.IsAny<bool?>(), It.IsAny<CancellationToken>()), Times.Never);
+
+    // IMPORTANT: TEST 16 - Stored flags map onto the four client-facing switches
+    [Fact]
+    public async Task GetNotificationPreferences_MapsAllFourSwitches()
+    {
+        // NOTE: Arrange
+        SetupRepoReturns(MakeResult(notifyEvents: true, notifyAnnouncements: false, notifyMassReminders: true, notifyFeastDays: false));
+
+        // NOTE: Act
+        var dto = await _service.GetNotificationPreferencesAsync(_userId);
+
+        // NOTE: Assert
+        Assert.True(dto.Events);
+        Assert.False(dto.Announcements);
+        Assert.True(dto.MassReminders);
+        Assert.False(dto.FeastDays);
+    }
+
+    // IMPORTANT: TEST 17 - Only the switch that moved is written; the other three arrive as null
+    [Fact]
+    public async Task UpdateNotificationPreferences_WritesOnlyTheSwitchThatMoved()
+    {
+        // NOTE: Arrange — everything currently on
+        SetupRepoReturns(MakeResult());
+
+        // NOTE: Act
+        await _service.UpdateNotificationPreferencesAsync(_userId, new UpdateNotificationPreferencesRequestDto { Announcements = false });
+
+        // NOTE: Assert
+        _mockRepo.Verify(r => r.UpdateNotificationPreferencesAsync(_userId, null, false, null, null, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    // IMPORTANT: TEST 18 - Re-sending values that already match writes nothing
+    [Fact]
+    public async Task UpdateNotificationPreferences_WithNoActualChange_SkipsWrite()
+    {
+        // NOTE: Arrange — stored state is on/off/on/off, and the request repeats it
+        SetupRepoReturns(MakeResult(notifyEvents: true, notifyAnnouncements: false, notifyMassReminders: true, notifyFeastDays: false));
+
+        // NOTE: Act
+        var dto = await _service.UpdateNotificationPreferencesAsync(_userId, new UpdateNotificationPreferencesRequestDto
+        {
+            Events = true,
+            Announcements = false,
+            MassReminders = true,
+            FeastDays = false
+        });
+
+        // NOTE: Assert — the stored set still comes back
+        Assert.True(dto.Events);
+        Assert.False(dto.Announcements);
+        VerifyNoPreferenceWrite();
+    }
+
+    // IMPORTANT: TEST 19 - An empty body is a no-op rather than a reset to all-off
+    [Fact]
+    public async Task UpdateNotificationPreferences_WithEmptyBody_SkipsWrite()
+    {
+        // NOTE: Arrange
+        SetupRepoReturns(MakeResult());
+
+        // NOTE: Act
+        var dto = await _service.UpdateNotificationPreferencesAsync(_userId, new UpdateNotificationPreferencesRequestDto());
+
+        // NOTE: Assert
+        Assert.True(dto.Events);
+        Assert.True(dto.Announcements);
+        Assert.True(dto.MassReminders);
+        Assert.True(dto.FeastDays);
+        VerifyNoPreferenceWrite();
+    }
+
+    // IMPORTANT: TEST 20 - Turning several switches off at once writes them all and echoes the stored row
+    [Fact]
+    public async Task UpdateNotificationPreferences_MultipleSwitches_AreWrittenAndReturned()
+    {
+        // NOTE: Arrange — the re-read after the write returns the new state
+        _mockRepo
+            .SetupSequence(r => r.GetProfileAsync(_userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(MakeResult())
+            .ReturnsAsync(MakeResult(notifyEvents: false, notifyFeastDays: false));
+
+        // NOTE: Act
+        var dto = await _service.UpdateNotificationPreferencesAsync(_userId, new UpdateNotificationPreferencesRequestDto
+        {
+            Events = false,
+            FeastDays = false
+        });
+
+        // NOTE: Assert
+        _mockRepo.Verify(r => r.UpdateNotificationPreferencesAsync(_userId, false, null, null, false, It.IsAny<CancellationToken>()), Times.Once);
+        Assert.False(dto.Events);
+        Assert.False(dto.FeastDays);
+        Assert.True(dto.Announcements);
+        Assert.True(dto.MassReminders);
+    }
+
+    // IMPORTANT: TEST 21 - A deactivated account cannot read or change its preferences
+    [Fact]
+    public async Task NotificationPreferences_WhenAccountInactive_ThrowUnauthorized()
+    {
+        // NOTE: Arrange
+        SetupRepoReturns(MakeResult(isActive: false));
+
+        // NOTE: Act & Assert
+        var readException = await Assert.ThrowsAsync<UnauthorizedException>(() => _service.GetNotificationPreferencesAsync(_userId));
+        Assert.Equal(MessageCodes.AuthAccountInactive, readException.MessageCode);
+
+        var writeException = await Assert.ThrowsAsync<UnauthorizedException>(
+            () => _service.UpdateNotificationPreferencesAsync(_userId, new UpdateNotificationPreferencesRequestDto { Events = false }));
+        Assert.Equal(MessageCodes.AuthAccountInactive, writeException.MessageCode);
+        VerifyNoPreferenceWrite();
+    }
+
     // NOTE: The stored account the delete request is checked against.
     private void SetupAccount(short authProvider = 1, string? passwordHash = "bcrypt-hash", string? authProviderId = null, bool isActive = true) =>
         _mockAuthRepo
@@ -358,7 +485,7 @@ public class UserServiceTests
     private void VerifyNoDelete() =>
         _mockRepo.Verify(r => r.DeleteAccountAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
 
-    // IMPORTANT: TEST 16 - Email account deletes once the current password checks out
+    // IMPORTANT: TEST 22 - Email account deletes once the current password checks out
     [Fact]
     public async Task DeleteAccount_EmailAccount_WithCorrectPassword_Deletes()
     {
@@ -377,7 +504,7 @@ public class UserServiceTests
         _mockRepo.Verify(r => r.DeleteAccountAsync(_userId, It.IsAny<CancellationToken>()), Times.Once);
     }
 
-    // IMPORTANT: TEST 17 - A wrong password leaves the account standing
+    // IMPORTANT: TEST 23 - A wrong password leaves the account standing
     [Fact]
     public async Task DeleteAccount_WrongPassword_ThrowsUnauthorized()
     {
@@ -396,7 +523,7 @@ public class UserServiceTests
         VerifyNoDelete();
     }
 
-    // IMPORTANT: TEST 18 - The JWT alone is not enough; the password field is required
+    // IMPORTANT: TEST 24 - The JWT alone is not enough; the password field is required
     [Theory]
     [InlineData(null)]
     [InlineData("")]
@@ -417,7 +544,7 @@ public class UserServiceTests
         VerifyNoDelete();
     }
 
-    // IMPORTANT: TEST 19 - The confirmation must use the provider the account was created with
+    // IMPORTANT: TEST 25 - The confirmation must use the provider the account was created with
     [Fact]
     public async Task DeleteAccount_ProviderMismatch_ThrowsUnauthorized()
     {
@@ -435,7 +562,7 @@ public class UserServiceTests
         VerifyNoDelete();
     }
 
-    // IMPORTANT: TEST 20 - Google account deletes when the fresh token resolves to its own subject
+    // IMPORTANT: TEST 26 - Google account deletes when the fresh token resolves to its own subject
     [Fact]
     public async Task DeleteAccount_GoogleAccount_WithMatchingToken_Deletes()
     {
@@ -454,7 +581,7 @@ public class UserServiceTests
         _mockRepo.Verify(r => r.DeleteAccountAsync(_userId, It.IsAny<CancellationToken>()), Times.Once);
     }
 
-    // IMPORTANT: TEST 21 - A valid Google token belonging to someone else cannot delete this account
+    // IMPORTANT: TEST 27 - A valid Google token belonging to someone else cannot delete this account
     [Fact]
     public async Task DeleteAccount_GoogleTokenForAnotherSubject_ThrowsUnauthorized()
     {
@@ -473,7 +600,7 @@ public class UserServiceTests
         VerifyNoDelete();
     }
 
-    // IMPORTANT: TEST 22 - A Google account must supply a token, and it is never validated when blank
+    // IMPORTANT: TEST 28 - A Google account must supply a token, and it is never validated when blank
     [Fact]
     public async Task DeleteAccount_GoogleAccount_WithoutIdToken_ThrowsBadRequest()
     {
@@ -488,7 +615,7 @@ public class UserServiceTests
         VerifyNoDelete();
     }
 
-    // IMPORTANT: TEST 23 - Apple has no validator yet, so it is refused rather than silently deleting
+    // IMPORTANT: TEST 29 - Apple has no validator yet, so it is refused rather than silently deleting
     [Fact]
     public async Task DeleteAccount_AppleAccount_ThrowsBadRequest()
     {
@@ -506,7 +633,7 @@ public class UserServiceTests
         VerifyNoDelete();
     }
 
-    // IMPORTANT: TEST 24 - Deleting an account that is already gone is a 404, not a second delete
+    // IMPORTANT: TEST 30 - Deleting an account that is already gone is a 404, not a second delete
     [Fact]
     public async Task DeleteAccount_WhenUserMissing_ThrowsNotFound()
     {
@@ -526,7 +653,7 @@ public class UserServiceTests
         VerifyNoDelete();
     }
 
-    // IMPORTANT: TEST 25 - A deactivated account is rejected before the credential is even checked
+    // IMPORTANT: TEST 31 - A deactivated account is rejected before the credential is even checked
     [Fact]
     public async Task DeleteAccount_WhenAccountInactive_ThrowsUnauthorized()
     {

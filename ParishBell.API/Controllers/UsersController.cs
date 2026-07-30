@@ -42,6 +42,30 @@ public class UsersController(IUserService userService, IUserDeviceService device
         return StatusCode(response.Status, response);
     }
 
+    // NOTE: GET /api/v1/users/me/notification-preferences
+    // IMPORTANT: Requires User JWT. Four push opt-ins, all on by default.
+    // NOTE: Stored only - the push pipeline does not consult them yet, so the toggles are decorative for now.
+    [HttpGet("me/notification-preferences")]
+    public async Task<IActionResult> GetNotificationPreferences(CancellationToken ct)
+    {
+        var userId = User.GetUserId();
+        var result = await _userService.GetNotificationPreferencesAsync(userId, ct);
+        var response = ApiResponseBuilder.Build(HttpContext, _messages, StatusCodes.Status200OK, MessageCodes.NotificationPreferencesRetrieved, result);
+        return StatusCode(response.Status, response);
+    }
+
+    // NOTE: PUT /api/v1/users/me/notification-preferences
+    // IMPORTANT: Requires User JWT. Partial update - send only the switches that moved; the rest keep their stored value.
+    // NOTE: Returns the full stored set so the settings screen can rebind from the response.
+    [HttpPut("me/notification-preferences")]
+    public async Task<IActionResult> UpdateNotificationPreferences([FromBody] UpdateNotificationPreferencesRequestDto request, CancellationToken ct)
+    {
+        var userId = User.GetUserId();
+        var result = await _userService.UpdateNotificationPreferencesAsync(userId, request, ct);
+        var response = ApiResponseBuilder.Build(HttpContext, _messages, StatusCodes.Status200OK, MessageCodes.NotificationPreferencesUpdated, result);
+        return StatusCode(response.Status, response);
+    }
+
     // NOTE: DELETE /api/v1/users/me
     // IMPORTANT: Requires User JWT *and* the account's own credential - password for Email accounts, a fresh ID token for Google.
     // IMPORTANT: Permanent. The user row and everything hanging off it (devices, follows, reminders, tokens, notification log) is removed.

@@ -54,6 +54,8 @@ public static class MessageCodes
     public const string UserProfileUpdated = "PB-62";
     public const string UserEmailChangeNotAllowed = "PB-63";
     public const string UserAccountDeleted = "PB-65";
+    public const string NotificationPreferencesRetrieved = "PB-66";
+    public const string NotificationPreferencesUpdated = "PB-67";
 
     // NOTE: Other
     public const string RateLimitExceeded = "PB-16";

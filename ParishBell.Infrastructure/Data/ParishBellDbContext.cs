@@ -138,6 +138,11 @@ public partial class ParishBellDbContext : DbContext
             entity.Property(e => e.AuthProviderId).HasComment("Google/Apple subject ID. NULL for email auth users.");
             entity.Property(e => e.CreatedAt).HasDefaultValueSql("now()");
             entity.Property(e => e.IsActive).HasDefaultValue(true);
+            // NOTE: Push opt-ins. The DB default supplies TRUE on insert, so registration does not set them.
+            entity.Property(e => e.NotifyAnnouncements).HasDefaultValue(true);
+            entity.Property(e => e.NotifyEvents).HasDefaultValue(true);
+            entity.Property(e => e.NotifyFeastDays).HasDefaultValue(true);
+            entity.Property(e => e.NotifyMassReminders).HasDefaultValue(true);
             entity.Property(e => e.PasswordHash).HasComment("BCrypt hashed. NULL for social auth users.");
 
             entity.HasOne(d => d.PreferredLanguageNavigation).WithMany(p => p.AppUsers)

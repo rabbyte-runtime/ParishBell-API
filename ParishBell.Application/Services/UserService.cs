@@ -48,6 +48,35 @@ public class UserService(
         return MapToDto(updated);
     }
 
+    public async Task<NotificationPreferencesDto> GetNotificationPreferencesAsync(Guid userId, CancellationToken ct = default)
+    {
+        var profile = await LoadActiveProfileAsync(userId, ct);
+        return MapToPreferencesDto(profile);
+    }
+
+    public async Task<NotificationPreferencesDto> UpdateNotificationPreferencesAsync(Guid userId, UpdateNotificationPreferencesRequestDto request, CancellationToken ct = default)
+    {
+        var current = await LoadActiveProfileAsync(userId, ct);
+
+        // NOTE: Only switches that were supplied *and* differ from what's stored reach the DB.
+        var events = Changed(request.Events, current.NotifyEvents);
+        var announcements = Changed(request.Announcements, current.NotifyAnnouncements);
+        var massReminders = Changed(request.MassReminders, current.NotifyMassReminders);
+        var feastDays = Changed(request.FeastDays, current.NotifyFeastDays);
+
+        if (events is null && announcements is null && massReminders is null && feastDays is null)
+            return MapToPreferencesDto(current);
+
+        await _userRepository.UpdateNotificationPreferencesAsync(userId, events, announcements, massReminders, feastDays, ct);
+
+        var updated = await LoadActiveProfileAsync(userId, ct);
+        return MapToPreferencesDto(updated);
+    }
+
+    // NOTE: Null when the switch was left out or already sits where the caller wants it.
+    private static bool? Changed(bool? requested, bool stored) =>
+        requested.HasValue && requested.Value != stored ? requested : null;
+
     public async Task DeleteAccountAsync(Guid userId, DeleteAccountRequestDto request, CancellationToken ct = default)
     {
         // NOTE: The entity, not the profile projection - the credential check needs the password hash and provider id.
@@ -180,6 +209,14 @@ public class UserService(
         PreferredLanguageNativeName = profile.PreferredLanguageNativeName,
         CreatedAt = FormatUtc(profile.CreatedAt),
         LastLoginAt = profile.LastLoginAt is null ? null : FormatUtc(profile.LastLoginAt.Value)
+    };
+
+    private static NotificationPreferencesDto MapToPreferencesDto(UserProfileResult profile) => new()
+    {
+        Events = profile.NotifyEvents,
+        Announcements = profile.NotifyAnnouncements,
+        MassReminders = profile.NotifyMassReminders,
+        FeastDays = profile.NotifyFeastDays
     };
 
     // NOTE: DB timestamps are stored as UTC - emit an explicit "Z" so the client parses them unambiguously.

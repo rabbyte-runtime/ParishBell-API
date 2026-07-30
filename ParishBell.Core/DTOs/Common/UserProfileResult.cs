@@ -12,5 +12,9 @@ public record UserProfileResult(
     Guid PreferredLanguage,
     string PreferredLanguageCode,
     string PreferredLanguageName,
-    string PreferredLanguageNativeName
+    string PreferredLanguageNativeName,
+    bool NotifyEvents,
+    bool NotifyAnnouncements,
+    bool NotifyMassReminders,
+    bool NotifyFeastDays
 );

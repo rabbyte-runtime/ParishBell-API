@@ -10,10 +10,23 @@ namespace ParishBell.API.Controllers;
 [ApiController]
 [Route("api/v1/users")]
 [Authorize]
-public class UsersController(IUserDeviceService deviceService, IMessageCache messages) : ControllerBase
+public class UsersController(IUserService userService, IUserDeviceService deviceService, IMessageCache messages) : ControllerBase
 {
+    private readonly IUserService _userService = userService;
     private readonly IUserDeviceService _deviceService = deviceService;
     private readonly IMessageCache _messages = messages;
+
+    // NOTE: GET /api/v1/users/me
+    // IMPORTANT: Requires User JWT. The profile returned is always the token's own user - the caller cannot ask for another.
+    // NOTE: 404 when the account no longer exists, 401 when it has been deactivated - both mean the app should sign out.
+    [HttpGet("me")]
+    public async Task<IActionResult> GetMe(CancellationToken ct)
+    {
+        var userId = User.GetUserId();
+        var result = await _userService.GetProfileAsync(userId, ct);
+        var response = ApiResponseBuilder.Build(HttpContext, _messages, StatusCodes.Status200OK, MessageCodes.UserProfileRetrieved, result);
+        return StatusCode(response.Status, response);
+    }
 
     // NOTE: PUT /api/v1/users/me/device-token
     // IMPORTANT: Requires User JWT. Idempotent upsert keyed by the globally-unique device token - re-registering the same token (even from another account) re-points it to the caller.

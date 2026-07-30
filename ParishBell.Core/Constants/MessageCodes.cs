@@ -50,6 +50,7 @@ public static class MessageCodes
     public const string LocationAnnouncementsForbidden = "PB-55";
     public const string DeviceTokenRegistered = "PB-56";
     public const string DeviceTokenRemoved = "PB-57";
+    public const string UserProfileRetrieved = "PB-61";
 
     // NOTE: Other
     public const string RateLimitExceeded = "PB-16";

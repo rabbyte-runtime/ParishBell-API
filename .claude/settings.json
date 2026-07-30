@@ -41,11 +41,15 @@
       "Read(//c/Users/rajit/.claude/projects/c--LTR-ParishBell-Source-codes-APIs/**)",
       "Bash(git checkout *)",
       "Bash(git add *)",
-      "Bash(git commit *)"
+      "Bash(git commit *)",
+      "PowerShell(dotnet test \"c:\\\\LTR\\\\ParishBell\\\\Source_codes\\\\APIs\\\\ParishBell.slnx\" --nologo -v q)",
+      "Bash(cd \"c:/Users/rajit/.claude/projects/c--LTR-ParishBell-Source-codes-APIs/memory\" && cat parishbell-split-architecture.md)",
+      "Read(//c/Users/rajit/.claude/projects/c--LTR-ParishBell-Source-codes-APIs/memory/**)"
     ],
     "additionalDirectories": [
       "C:\\Users\\rajit\\AppData\\Local\\Temp\\claude\\c--LTR-ParishBell-Source-codes-APIs\\74b2b2de-8f72-4016-8b57-28016b9d9ba7\\scratchpad",
-      "C:\\LTR\\ParishBell\\secrets"
+      "C:\\LTR\\ParishBell\\secrets",
+      "c:\\Users\\rajit\\.claude\\projects\\c--LTR-ParishBell-Source-codes-APIs\\memory"
     ]
   }
 }

@@ -17,7 +17,35 @@
       "Read(//c/Users/rajit/AppData/Roaming/Microsoft/UserSecrets/ParishBell-API-Development/**)",
       "PowerShell(dotnet build \"c:\\\\LTR\\\\ParishBell\\\\Source_codes\\\\APIs\\\\ParishBell.API\\\\ParishBell.API.csproj\" -clp:ErrorsOnly --nologo)",
       "PowerShell(dotnet test \"c:\\\\LTR\\\\ParishBell\\\\Source_codes\\\\APIs\\\\ParishBell.Tests\\\\ParishBell.Tests.csproj\" --nologo --filter \"FullyQualifiedName~AnnouncementServiceTests\")",
-      "PowerShell(dotnet test \"c:\\\\LTR\\\\ParishBell\\\\Source_codes\\\\APIs\\\\ParishBell.Tests\\\\ParishBell.Tests.csproj\" --nologo)"
+      "PowerShell(dotnet test \"c:\\\\LTR\\\\ParishBell\\\\Source_codes\\\\APIs\\\\ParishBell.Tests\\\\ParishBell.Tests.csproj\" --nologo)",
+      "Bash(dotnet --version)",
+      "Bash(dotnet add *)",
+      "Read(//c/Users/rajit/.nuget/packages/firebaseadmin/3.6.0/**)",
+      "Read(//c/Users/rajit/.nuget/packages/google.apis.auth//**)",
+      "Bash(grep -n -A3 -i \"Fids\\\\|<member name=\\\\\"P:FirebaseAdmin.Messaging.MulticastMessage\" \"/c/Users/rajit/.nuget/packages/firebaseadmin/3.6.0/lib/net6.0/FirebaseAdmin.xml\" | head -60)",
+      "Read(//c/Users/rajit/.nuget/packages/firebaseadmin/3.6.0/lib/net6.0/**)",
+      "Bash(grep -n -B1 -A2 \"M:FirebaseAdmin.Messaging.FirebaseMessaging.SendEachAsync\\\\|P:FirebaseAdmin.Messaging.Message.Token\\\\b\\\\|Obsolete\" \"/c/Users/rajit/.nuget/packages/firebaseadmin/3.6.0/lib/net6.0/FirebaseAdmin.xml\" | head -40)",
+      "Bash(AUTH=\"/c/Users/rajit/.nuget/packages/google.apis.auth/1.74.0/lib/net6.0/Google.Apis.Auth.xml\"; grep -n \"CredentialFactory\\\\|FromFileAsync\\\\|GetApplicationDefault\\\\|class GoogleCredential\" \"$AUTH\" 2>/dev/null | head -20; echo \"--- has file? ---\"; ls \"/c/Users/rajit/.nuget/packages/google.apis.auth/1.74.0/lib/\" 2>/dev/null)",
+      "Read(//c/Users/rajit/.nuget/packages/google.apis.auth/1.74.0/lib/net6.0/**)",
+      "Read(//c/Users/rajit/.nuget/packages/google.apis.auth/1.74.0/lib//**)",
+      "Bash(echo \"=== FromFile<T> / FromJson<T> docs ===\")",
+      "Bash(echo \"=== ToGoogleCredential ===\")",
+      "Bash(grep -Ei \"Push\\\\\\\\\\\\\\\\|Push/|error|Build succeeded|Build FAILED\")",
+      "Bash(dotnet test *)",
+      "Bash(dotnet user-secrets *)",
+      "Bash(dotnet run *)",
+      "Bash(grep -Ev \"^\\\\s*$|Determining|Restored|ng: command\")",
+      "Bash(wait)",
+      "Bash(ls \"C:\\\\Users\\\\rajit\\\\.claude\\\\projects\\\\c--LTR-ParishBell-Source-codes-APIs\\\\memory\\\\\" 2>/dev/null && echo \"---\" && cat \"C:\\\\Users\\\\rajit\\\\.claude\\\\projects\\\\c--LTR-ParishBell-Source-codes-APIs\\\\memory\\\\MEMORY.md\" 2>/dev/null | head -30)",
+      "Read(//c/Users/rajit/.claude/projects/c--LTR-ParishBell-Source-codes-APIs/memory\" 2>/dev/null && echo --- && cat C:Usersrajit.claudeprojectsc--LTR-ParishBell-Source-codes-APIsmemoryMEMORY.md 2>/dev/**)",
+      "Read(//c/Users/rajit/.claude/projects/c--LTR-ParishBell-Source-codes-APIs/**)",
+      "Bash(git checkout *)",
+      "Bash(git add *)",
+      "Bash(git commit *)"
+    ],
+    "additionalDirectories": [
+      "C:\\Users\\rajit\\AppData\\Local\\Temp\\claude\\c--LTR-ParishBell-Source-codes-APIs\\74b2b2de-8f72-4016-8b57-28016b9d9ba7\\scratchpad",
+      "C:\\LTR\\ParishBell\\secrets"
     ]
   }
 }

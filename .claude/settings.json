@@ -44,7 +44,10 @@
       "Bash(git commit *)",
       "PowerShell(dotnet test \"c:\\\\LTR\\\\ParishBell\\\\Source_codes\\\\APIs\\\\ParishBell.slnx\" --nologo -v q)",
       "Bash(cd \"c:/Users/rajit/.claude/projects/c--LTR-ParishBell-Source-codes-APIs/memory\" && cat parishbell-split-architecture.md)",
-      "Read(//c/Users/rajit/.claude/projects/c--LTR-ParishBell-Source-codes-APIs/memory/**)"
+      "Read(//c/Users/rajit/.claude/projects/c--LTR-ParishBell-Source-codes-APIs/memory/**)",
+      "PowerShell(dotnet run --project \"C:\\\\Users\\\\rajit\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--LTR-ParishBell-Source-codes-APIs\\\\b3e72f76-a387-4888-8ec1-df71819f9b7d\\\\scratchpad\\\\QueryCheck\\\\QueryCheck.csproj\")",
+      "PowerShell(dotnet run --project \"C:\\\\Users\\\\rajit\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--LTR-ParishBell-Source-codes-APIs\\\\b3e72f76-a387-4888-8ec1-df71819f9b7d\\\\scratchpad\\\\QueryCheck\\\\QueryCheck.csproj\" -v q --nologo)",
+      "PowerShell(dotnet run --project \"C:\\\\Users\\\\rajit\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--LTR-ParishBell-Source-codes-APIs\\\\b3e72f76-a387-4888-8ec1-df71819f9b7d\\\\scratchpad\\\\QueryCheck\\\\QueryCheck.csproj\" -v q --nologo 2>&1)"
     ],
     "additionalDirectories": [
       "C:\\Users\\rajit\\AppData\\Local\\Temp\\claude\\c--LTR-ParishBell-Source-codes-APIs\\74b2b2de-8f72-4016-8b57-28016b9d9ba7\\scratchpad",

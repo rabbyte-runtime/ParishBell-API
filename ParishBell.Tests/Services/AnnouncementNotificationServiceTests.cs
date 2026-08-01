@@ -154,6 +154,50 @@ public class AnnouncementNotificationServiceTests
         Assert.Equal("புதிய அறிவிப்பு", captured.Value!.First(l => l.UserId == taUser).Title);  // generic ta
     }
 
+    // IMPORTANT: TEST 6 - The push payload carries the church, so a tapped notification can open its channel
+    [Fact]
+    public async Task Deliver_PushPayloadCarriesAnnouncementAndLocation()
+    {
+        var announcementId = Guid.NewGuid();
+        var locationId = Guid.NewGuid();
+        var user = Guid.NewGuid();
+
+        _repo.Setup(r => r.GetPendingAsync(It.IsAny<short>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([Pending(Guid.NewGuid(), user, announcementId, locationId)]);
+
+        var sent = new StrongBox<PushNotification?>(null);
+        _push.Setup(p => p.SendToUserAsync(user, It.IsAny<PushNotification>(), It.IsAny<CancellationToken>()))
+            .Callback<Guid, PushNotification, CancellationToken>((_, n, _) => sent.Value = n)
+            .ReturnsAsync(new PushSendResult { SuccessCount = 1 });
+
+        await _service.ProcessPendingAsync();
+
+        var data = sent.Value!.Data!;
+        Assert.Equal("announcement", data["type"]);
+        Assert.Equal(announcementId.ToString(), data["announcementId"]);
+        Assert.Equal(locationId.ToString(), data["locationId"]);
+    }
+
+    // IMPORTANT: TEST 7 - An unresolvable church leaves the key out rather than sending an empty value
+    [Fact]
+    public async Task Deliver_WithoutLocation_OmitsTheKey()
+    {
+        var user = Guid.NewGuid();
+
+        _repo.Setup(r => r.GetPendingAsync(It.IsAny<short>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([Pending(Guid.NewGuid(), user)]);
+
+        var sent = new StrongBox<PushNotification?>(null);
+        _push.Setup(p => p.SendToUserAsync(user, It.IsAny<PushNotification>(), It.IsAny<CancellationToken>()))
+            .Callback<Guid, PushNotification, CancellationToken>((_, n, _) => sent.Value = n)
+            .ReturnsAsync(new PushSendResult { SuccessCount = 1 });
+
+        await _service.ProcessPendingAsync();
+
+        Assert.False(sent.Value!.Data!.ContainsKey("locationId"));
+        Assert.True(sent.Value.Data.ContainsKey("announcementId"));
+    }
+
     // ---- helpers ----
 
     private static PendingAnnouncement Announcement(Guid id, Guid locationId, params (string Lang, string? Title, string? Caption)[] translations) => new()
@@ -168,13 +212,14 @@ public class AnnouncementNotificationServiceTests
 
     private static NotificationRecipient Recipient(Guid userId, string lang) => new() { UserId = userId, LanguageCode = lang };
 
-    private static PendingNotification Pending(Guid id, Guid userId) => new()
+    private static PendingNotification Pending(Guid id, Guid userId, Guid? referenceId = null, Guid? locationId = null) => new()
     {
         NotificationId = id,
         UserId = userId,
         Title = "t",
         Body = "b",
-        ReferenceId = Guid.NewGuid()
+        ReferenceId = referenceId ?? Guid.NewGuid(),
+        LocationId = locationId
     };
 
     private StrongBox<List<NotificationsLog>?> CaptureAddedLogs()

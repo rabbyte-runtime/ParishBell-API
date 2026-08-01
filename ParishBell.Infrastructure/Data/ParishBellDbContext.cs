@@ -402,6 +402,7 @@ public partial class ParishBellDbContext : DbContext
             entity.ToTable("notifications_log", tb => tb.HasComment("Log of all push notifications sent. Used for debugging and retry logic."));
 
             entity.Property(e => e.NotificationId).HasDefaultValueSql("gen_random_uuid()");
+            entity.Property(e => e.IsRead).HasComment("TRUE once the user has opened it in the in-app inbox.");
             entity.Property(e => e.IsSent).HasComment("FALSE if push delivery failed. Retry logic queries is_sent=FALSE.");
             entity.Property(e => e.ReferenceId).HasComment("ID of related entity — event_id, announcement_id, calendar_id, etc.");
             entity.Property(e => e.Type).HasConversion<short>().HasComment("1=Event, 2=Announcement, 3=MassReminder, 4=FeastDay, 5=System.");

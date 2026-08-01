@@ -109,6 +109,8 @@ builder.Services.AddScoped<IAnnouncementRepository, AnnouncementRepository>();
 builder.Services.AddScoped<IAnnouncementService, AnnouncementService>();
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IUserService, UserService>();
+builder.Services.AddScoped<IUserNotificationRepository, UserNotificationRepository>();
+builder.Services.AddScoped<IUserNotificationService, UserNotificationService>();
 builder.Services.AddScoped<IUserDeviceRepository, UserDeviceRepository>();
 builder.Services.AddScoped<IUserDeviceService, UserDeviceService>();
 builder.Services.AddScoped<ILiturgicalCalendarRepository, LiturgicalCalendarRepository>();

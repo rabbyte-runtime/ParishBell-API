@@ -49,6 +49,12 @@ public partial class NotificationsLog
     [Column("sent_at")]
     public DateTime? SentAt { get; set; }
 
+    /// <summary>
+    /// TRUE once the user has opened it in the in-app inbox. Defaults FALSE.
+    /// </summary>
+    [Column("is_read")]
+    public bool IsRead { get; set; }
+
     [ForeignKey("UserId")]
     [InverseProperty("NotificationsLogs")]
     public virtual AppUser User { get; set; } = null!;

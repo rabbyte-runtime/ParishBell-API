@@ -11,9 +11,10 @@ namespace ParishBell.API.Controllers;
 [ApiController]
 [Route("api/v1/users")]
 [Authorize]
-public class UsersController(IUserService userService, IUserDeviceService deviceService, IMessageCache messages) : ControllerBase
+public class UsersController(IUserService userService, IUserNotificationService notificationService, IUserDeviceService deviceService, IMessageCache messages) : ControllerBase
 {
     private readonly IUserService _userService = userService;
+    private readonly IUserNotificationService _notificationService = notificationService;
     private readonly IUserDeviceService _deviceService = deviceService;
     private readonly IMessageCache _messages = messages;
 
@@ -39,6 +40,42 @@ public class UsersController(IUserService userService, IUserDeviceService device
         var userId = User.GetUserId();
         var result = await _userService.UpdateProfileAsync(userId, request, ct);
         var response = ApiResponseBuilder.Build(HttpContext, _messages, StatusCodes.Status200OK, MessageCodes.UserProfileUpdated, result);
+        return StatusCode(response.Status, response);
+    }
+
+    // NOTE: GET /api/v1/users/me/notifications
+    // IMPORTANT: Requires User JWT. The signed-in user's inbox, newest first. Only delivered notifications appear.
+    // NOTE: page defaults to 1, pageSize to 20 and is capped at 100. hasMore drives the lazy-load.
+    // NOTE: Each item carries the deep-link ids for its type - locationId, eventId, announcementId, calendarId - null where they do not apply.
+    [HttpGet("me/notifications")]
+    public async Task<IActionResult> GetNotifications([FromQuery] int? page, [FromQuery] int? pageSize, CancellationToken ct)
+    {
+        var userId = User.GetUserId();
+        var result = await _notificationService.GetNotificationsAsync(userId, page, pageSize, ct);
+        var response = ApiResponseBuilder.Build(HttpContext, _messages, StatusCodes.Status200OK, MessageCodes.NotificationsRetrieved, result);
+        return StatusCode(response.Status, response);
+    }
+
+    // NOTE: PUT /api/v1/users/me/notifications/{notificationId}/read
+    // IMPORTANT: Requires User JWT. Scoped to the caller - another user's notification id returns 404, not 403.
+    // NOTE: Idempotent - marking an already-read notification succeeds.
+    [HttpPut("me/notifications/{notificationId:guid}/read")]
+    public async Task<IActionResult> MarkNotificationRead(Guid notificationId, CancellationToken ct)
+    {
+        var userId = User.GetUserId();
+        await _notificationService.MarkReadAsync(userId, notificationId, ct);
+        var response = ApiResponseBuilder.Build<object?>(HttpContext, _messages, StatusCodes.Status200OK, MessageCodes.NotificationMarkedRead, null);
+        return StatusCode(response.Status, response);
+    }
+
+    // NOTE: POST /api/v1/users/me/notifications/read-all
+    // IMPORTANT: Requires User JWT. Clears the unread badge in one call. Idempotent - an empty inbox succeeds.
+    [HttpPost("me/notifications/read-all")]
+    public async Task<IActionResult> MarkAllNotificationsRead(CancellationToken ct)
+    {
+        var userId = User.GetUserId();
+        await _notificationService.MarkAllReadAsync(userId, ct);
+        var response = ApiResponseBuilder.Build<object?>(HttpContext, _messages, StatusCodes.Status200OK, MessageCodes.NotificationsAllMarkedRead, null);
         return StatusCode(response.Status, response);
     }
 

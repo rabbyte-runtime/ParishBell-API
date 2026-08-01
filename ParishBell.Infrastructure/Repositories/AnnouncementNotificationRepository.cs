@@ -74,7 +74,14 @@ public class AnnouncementNotificationRepository(ParishBellDbContext dbContext) :
                 UserId = n.UserId,
                 Title = n.Title,
                 Body = n.Body,
-                ReferenceId = n.ReferenceId
+                ReferenceId = n.ReferenceId,
+
+                // NOTE: notifications_log stores only the polymorphic reference, so the church is looked up
+                //       here. Announcements are the only type with a sender today; the rest resolve to null
+                //       until theirs exist.
+                LocationId = n.Type == AnnouncementType
+                    ? _dbContext.Announcements.Where(a => a.AnnouncementId == n.ReferenceId).Select(a => (Guid?)a.LocationId).FirstOrDefault()
+                    : null
             })
             .ToListAsync(ct);
     }

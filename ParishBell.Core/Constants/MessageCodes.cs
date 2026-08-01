@@ -56,6 +56,9 @@ public static class MessageCodes
     public const string UserAccountDeleted = "PB-65";
     public const string NotificationPreferencesRetrieved = "PB-66";
     public const string NotificationPreferencesUpdated = "PB-67";
+    public const string NotificationsRetrieved = "PB-68";
+    public const string NotificationMarkedRead = "PB-69";
+    public const string NotificationsAllMarkedRead = "PB-70";
 
     // NOTE: Other
     public const string RateLimitExceeded = "PB-16";

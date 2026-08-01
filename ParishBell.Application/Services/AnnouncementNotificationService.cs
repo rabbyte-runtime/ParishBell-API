@@ -83,16 +83,24 @@ public class AnnouncementNotificationService(
         return (delivered.Count, pending.Count - delivered.Count);
     }
 
-    private static PushNotification ToNotification(PendingNotification item) => new()
+    private static PushNotification ToNotification(PendingNotification item)
     {
-        Title = item.Title,
-        Body = item.Body,
-        Data = item.ReferenceId is null ? null : new Dictionary<string, string>
+        if (item.ReferenceId is null)
+            return new PushNotification { Title = item.Title, Body = item.Body };
+
+        var data = new Dictionary<string, string>
         {
             ["type"] = "announcement",
             ["announcementId"] = item.ReferenceId.Value.ToString()
-        }
-    };
+        };
+
+        // NOTE: Lets a tapped push open the church's channel outright. Absent only when the announcement
+        //       was deleted between enqueue and delivery, so the client must treat it as optional.
+        if (item.LocationId is not null)
+            data["locationId"] = item.LocationId.Value.ToString();
+
+        return new PushNotification { Title = item.Title, Body = item.Body, Data = data };
+    }
 
     // NOTE: Prefer the recipient's language, then English, then any available translation, then a
     //       generic localized string (announcement titles/captions are optional in the schema).

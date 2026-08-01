@@ -56,6 +56,18 @@ public class UsersController(IUserService userService, IUserNotificationService 
         return StatusCode(response.Status, response);
     }
 
+    // NOTE: GET /api/v1/users/me/notifications/unread-count
+    // IMPORTANT: Requires User JWT. Counts the caller's own unread notifications only.
+    // NOTE: Counts exactly what the inbox list would show, so the badge and the list always agree. An empty inbox is 0, not a 404.
+    [HttpGet("me/notifications/unread-count")]
+    public async Task<IActionResult> GetUnreadNotificationCount(CancellationToken ct)
+    {
+        var userId = User.GetUserId();
+        var result = await _notificationService.GetUnreadCountAsync(userId, ct);
+        var response = ApiResponseBuilder.Build(HttpContext, _messages, StatusCodes.Status200OK, MessageCodes.NotificationUnreadCountRetrieved, result);
+        return StatusCode(response.Status, response);
+    }
+
     // NOTE: PUT /api/v1/users/me/notifications/{notificationId}/read
     // IMPORTANT: Requires User JWT. Scoped to the caller - another user's notification id returns 404, not 403.
     // NOTE: Idempotent - marking an already-read notification succeeds.

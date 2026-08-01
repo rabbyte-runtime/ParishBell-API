@@ -59,6 +59,7 @@ public static class MessageCodes
     public const string NotificationsRetrieved = "PB-68";
     public const string NotificationMarkedRead = "PB-69";
     public const string NotificationsAllMarkedRead = "PB-70";
+    public const string NotificationUnreadCountRetrieved = "PB-71";
 
     // NOTE: Other
     public const string RateLimitExceeded = "PB-16";

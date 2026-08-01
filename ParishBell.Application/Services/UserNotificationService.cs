@@ -37,6 +37,14 @@ public class UserNotificationService(IUserNotificationRepository notificationRep
         };
     }
 
+    public async Task<NotificationUnreadCountDto> GetUnreadCountAsync(Guid userId, CancellationToken ct = default)
+    {
+        return new NotificationUnreadCountDto
+        {
+            UnreadCount = await _notificationRepository.GetUnreadCountAsync(userId, ct)
+        };
+    }
+
     public async Task MarkReadAsync(Guid userId, Guid notificationId, CancellationToken ct = default)
     {
         // IMPORTANT: Someone else's notification id is indistinguishable from a missing one - both 404.

@@ -230,7 +230,40 @@ public class UserNotificationServiceTests
         Assert.False(page.HasMore);
     }
 
-    // IMPORTANT: TEST 11 - Marking read is scoped to the caller
+    // IMPORTANT: TEST 11 - The badge count is whatever the repo counted, for this user only
+    [Fact]
+    public async Task GetUnreadCount_ReturnsRepositoryCountScopedToUser()
+    {
+        // NOTE: Arrange
+        _mockRepo
+            .Setup(r => r.GetUnreadCountAsync(_userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(7);
+
+        // NOTE: Act
+        var result = await _service.GetUnreadCountAsync(_userId);
+
+        // NOTE: Assert
+        Assert.Equal(7, result.UnreadCount);
+        _mockRepo.Verify(r => r.GetUnreadCountAsync(_userId, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    // IMPORTANT: TEST 12 - A fully-read inbox is a zero badge, not an error
+    [Fact]
+    public async Task GetUnreadCount_WithNothingUnread_ReturnsZero()
+    {
+        // NOTE: Arrange
+        _mockRepo
+            .Setup(r => r.GetUnreadCountAsync(_userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(0);
+
+        // NOTE: Act
+        var result = await _service.GetUnreadCountAsync(_userId);
+
+        // NOTE: Assert
+        Assert.Equal(0, result.UnreadCount);
+    }
+
+    // IMPORTANT: TEST 13 - Marking read is scoped to the caller
     [Fact]
     public async Task MarkRead_WhenOwned_Succeeds()
     {
@@ -247,7 +280,7 @@ public class UserNotificationServiceTests
         _mockRepo.Verify(r => r.MarkReadAsync(_userId, notificationId, It.IsAny<CancellationToken>()), Times.Once);
     }
 
-    // IMPORTANT: TEST 12 - Someone else's notification id is a 404, revealing nothing about its existence
+    // IMPORTANT: TEST 14 - Someone else's notification id is a 404, revealing nothing about its existence
     [Fact]
     public async Task MarkRead_WhenNotOwnedOrMissing_ThrowsNotFound()
     {
@@ -261,7 +294,7 @@ public class UserNotificationServiceTests
         Assert.Equal(MessageCodes.GeneralNotFound, exception.MessageCode);
     }
 
-    // IMPORTANT: TEST 13 - Clearing the badge forwards to the repo for this user only
+    // IMPORTANT: TEST 15 - Clearing the badge forwards to the repo for this user only
     [Fact]
     public async Task MarkAllRead_ForwardsToRepositoryScopedToUser()
     {

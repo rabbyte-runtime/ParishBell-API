@@ -8,6 +8,12 @@ public class NotificationPageDto
     public bool HasMore { get; set; }
 }
 
+public class NotificationUnreadCountDto
+{
+    // NOTE: Unread rows the inbox would actually show - the tab badge binds straight to this.
+    public int UnreadCount { get; set; }
+}
+
 public class NotificationDto
 {
     public Guid NotificationId { get; set; }

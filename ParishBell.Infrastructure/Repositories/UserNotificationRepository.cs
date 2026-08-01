@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using ParishBell.Core.DTOs.Common;
+using ParishBell.Core.Entities;
 using ParishBell.Core.Enums;
 using ParishBell.Core.Interfaces;
 using ParishBell.Infrastructure.Data;
@@ -15,14 +16,18 @@ public class UserNotificationRepository(ParishBellDbContext dbContext) : IUserNo
     private const short MassReminderType = (short)NotificationType.MassReminder;
     private const short FeastDayType = (short)NotificationType.FeastDay;
 
-    public async Task<IReadOnlyList<NotificationResult>> GetForUserAsync(Guid userId, int skip, int take, CancellationToken ct = default)
-    {
-        return await _dbContext.NotificationsLogs
+    // NOTE: The one definition of "in the user's inbox" - shared so the list and the unread badge can never disagree about what counts.
+    private IQueryable<NotificationsLog> UserInbox(Guid userId) =>
+        _dbContext.NotificationsLogs
             .AsNoTracking()
             // IMPORTANT: Only delivered rows belong in the inbox - unsent ones are outbox entries the user never received.
             .Where(n => n.UserId == userId && n.IsSent && n.SentAt != null)
             // NOTE: Type 5 (System) has no deep-link target and is not part of the client's type union.
-            .Where(n => n.Type == EventType || n.Type == AnnouncementType || n.Type == MassReminderType || n.Type == FeastDayType)
+            .Where(n => n.Type == EventType || n.Type == AnnouncementType || n.Type == MassReminderType || n.Type == FeastDayType);
+
+    public async Task<IReadOnlyList<NotificationResult>> GetForUserAsync(Guid userId, int skip, int take, CancellationToken ct = default)
+    {
+        return await UserInbox(userId)
             .OrderByDescending(n => n.SentAt)
             .ThenByDescending(n => n.NotificationId)
             .Skip(skip)
@@ -55,6 +60,12 @@ public class UserNotificationRepository(ParishBellDbContext dbContext) : IUserNo
                     : null
             })
             .ToListAsync(ct);
+    }
+
+    public async Task<int> GetUnreadCountAsync(Guid userId, CancellationToken ct = default)
+    {
+        // NOTE: A COUNT over the same predicate the list uses - no rows are materialised, so this is cheap enough to poll.
+        return await UserInbox(userId).CountAsync(n => !n.IsRead, ct);
     }
 
     public async Task<bool> MarkReadAsync(Guid userId, Guid notificationId, CancellationToken ct = default)

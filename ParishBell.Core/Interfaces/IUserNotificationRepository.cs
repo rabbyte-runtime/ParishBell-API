@@ -8,6 +8,9 @@ public interface IUserNotificationRepository
     // NOTE: Delivered notifications for the user, newest first. Only the four user-facing types are returned.
     Task<IReadOnlyList<NotificationResult>> GetForUserAsync(Guid userId, int skip, int take, CancellationToken ct = default);
 
+    // NOTE: How many of those same rows are still unread. Counts only what GetForUserAsync would return, so the badge cannot outrun the list.
+    Task<int> GetUnreadCountAsync(Guid userId, CancellationToken ct = default);
+
     // NOTE: Marks one notification read. False when it does not exist or belongs to someone else. Idempotent.
     Task<bool> MarkReadAsync(Guid userId, Guid notificationId, CancellationToken ct = default);
 

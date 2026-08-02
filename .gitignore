@@ -62,3 +62,7 @@ nunit-*.xml
 /ParishBell.Infrastructure/ParishBell.Infrastructure.csproj.lscache
 /ParishBell.Core/ParishBell.Core.csproj.lscache
 /ParishBell.Tests/ParishBell.Tests.csproj.lscache
+
+# VS Code
+.vscode/
+.claude/settings.json

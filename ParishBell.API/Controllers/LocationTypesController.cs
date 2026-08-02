@@ -12,8 +12,8 @@ public class LocationTypesController(ILocationTypeService locationTypeService, I
     private readonly ILocationTypeService _locationTypeService = locationTypeService;
     private readonly IMessageCache _messages = messages;
 
-    // GET /api/v1/location-types
-    // IMPORTANT: do not gate this endpoint - the map filter and onboarding screens need this list.
+    // NOTE: GET /api/v1/location-types
+    // IMPORTANT: Do not gate this endpoint - the map filter and onboarding screens need this list.
     [HttpGet]
     public async Task<IActionResult> GetLocationTypes([FromHeader(Name = "Accept-Language")] string? acceptLanguage, CancellationToken ct)
     {

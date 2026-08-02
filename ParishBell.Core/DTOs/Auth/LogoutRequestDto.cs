@@ -7,4 +7,8 @@ public class LogoutRequestDto
     // NOTE: The refresh token to revoke (current device's session)
     [Required(ErrorMessage = "PB-10")]
     public string RefreshToken { get; set; } = string.Empty;
+
+    // NOTE: Optional — the calling device's push token. When supplied, its registration is pruned so
+    //       the signed-out device stops receiving notifications.
+    public string? DeviceToken { get; set; }
 }

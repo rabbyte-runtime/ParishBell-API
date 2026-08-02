@@ -100,6 +100,7 @@ public partial class ParishBellDbContext : DbContext
             entity.Property(e => e.IsActive).HasDefaultValue(true);
             entity.Property(e => e.MediaType).HasConversion<short>().HasComment("1=Audio, 2=Video.");
             entity.Property(e => e.MediaUrl).HasComment("Azure Blob Storage SAS URL for the audio/video file.");
+            entity.Property(e => e.ThumbnailUrl).HasComment("Azure Blob Storage URL for the video poster / audio cover art. NULL when none.");
 
             entity.HasOne(d => d.CreatedByNavigation).WithMany(p => p.Announcements)
                 .OnDelete(DeleteBehavior.Restrict)
@@ -137,6 +138,11 @@ public partial class ParishBellDbContext : DbContext
             entity.Property(e => e.AuthProviderId).HasComment("Google/Apple subject ID. NULL for email auth users.");
             entity.Property(e => e.CreatedAt).HasDefaultValueSql("now()");
             entity.Property(e => e.IsActive).HasDefaultValue(true);
+            // NOTE: Push opt-ins. The DB default supplies TRUE on insert, so registration does not set them.
+            entity.Property(e => e.NotifyAnnouncements).HasDefaultValue(true);
+            entity.Property(e => e.NotifyEvents).HasDefaultValue(true);
+            entity.Property(e => e.NotifyFeastDays).HasDefaultValue(true);
+            entity.Property(e => e.NotifyMassReminders).HasDefaultValue(true);
             entity.Property(e => e.PasswordHash).HasComment("BCrypt hashed. NULL for social auth users.");
 
             entity.HasOne(d => d.PreferredLanguageNavigation).WithMany(p => p.AppUsers)
@@ -396,6 +402,7 @@ public partial class ParishBellDbContext : DbContext
             entity.ToTable("notifications_log", tb => tb.HasComment("Log of all push notifications sent. Used for debugging and retry logic."));
 
             entity.Property(e => e.NotificationId).HasDefaultValueSql("gen_random_uuid()");
+            entity.Property(e => e.IsRead).HasComment("TRUE once the user has opened it in the in-app inbox.");
             entity.Property(e => e.IsSent).HasComment("FALSE if push delivery failed. Retry logic queries is_sent=FALSE.");
             entity.Property(e => e.ReferenceId).HasComment("ID of related entity — event_id, announcement_id, calendar_id, etc.");
             entity.Property(e => e.Type).HasConversion<short>().HasComment("1=Event, 2=Announcement, 3=MassReminder, 4=FeastDay, 5=System.");
@@ -455,6 +462,7 @@ public partial class ParishBellDbContext : DbContext
                 .HasDefaultValueSql("now()")
                 .HasComment("Tokens inactive > 90 days are pruned by background job.");
             entity.Property(e => e.Platform).HasConversion<short>().HasComment("1=iOS (APNs), 2=Android (FCM).");
+            entity.Property(e => e.AppVersion).HasComment("Client app version at registration time, e.g. \"1.0.0\". NULL when not supplied.");
             entity.Property(e => e.RegisteredAt).HasDefaultValueSql("now()");
 
             entity.HasOne(d => d.User).WithMany(p => p.UserDevices).HasConstraintName("fk_ud_user");

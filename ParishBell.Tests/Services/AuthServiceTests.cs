@@ -19,6 +19,7 @@ public class AuthServiceTests
     private readonly Mock<IExternalAuthValidator> _mockGoogleValidator;
     private readonly Mock<IPasswordResetRepository> _mockPasswordResetRepo;
     private readonly Mock<IEmailService> _mockEmailService;
+    private readonly Mock<IUserDeviceRepository> _mockDeviceRepo;
     private readonly AuthService _authService;
 
     private readonly Guid _testLanguageId = Guid.NewGuid();
@@ -31,6 +32,7 @@ public class AuthServiceTests
         _mockJwt = new Mock<IJwtTokenService>();
         _mockPasswordResetRepo = new Mock<IPasswordResetRepository>();
         _mockEmailService = new Mock<IEmailService>();
+        _mockDeviceRepo = new Mock<IUserDeviceRepository>();
 
         // NOTE: Mock Google validator
         _mockGoogleValidator = new Mock<IExternalAuthValidator>();
@@ -45,7 +47,8 @@ public class AuthServiceTests
             _mockEmailService.Object,
             Options.Create(new PasswordResetSettings { CodeExpiryMinutes = 15, MaxRequestsPerHour = 3 }),
             Mock.Of<IMessageCache>(),
-            [_mockGoogleValidator.Object]
+            [_mockGoogleValidator.Object],
+            _mockDeviceRepo.Object
         );
 
         // NOTE: Set up default JWT mocks
@@ -1137,6 +1140,83 @@ public class AuthServiceTests
 
         // IMPORTANT: We also don't trigger all-session revocation - logout is NOT a reuse attack signal
         _mockRepo.Verify(r => r.RevokeAllUserRefreshTokensAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    // IMPORTANT: TEST 29a - Logout with a device token prunes it, scoped to the token's owner
+    [Fact]
+    public async Task LogoutAsync_WithDeviceToken_PrunesDeviceScopedToUser()
+    {
+        // NOTE: Arrange
+        var userId = Guid.NewGuid();
+        var request = new LogoutRequestDto
+        {
+            RefreshToken = "raw_refresh_token",
+            DeviceToken = "  fcm_device_token  "   // IMPORTANT: whitespace should be trimmed
+        };
+
+        var storedToken = new RefreshToken
+        {
+            RefreshTokenId = Guid.NewGuid(),
+            UserId = userId,
+            TokenHash = "hashed_refresh",
+            ExpiresAt = DateTime.UtcNow.AddDays(15),
+            IsRevoked = false
+        };
+
+        _mockRepo.Setup(r => r.GetRefreshTokenByHashAsync("hashed_refresh", It.IsAny<CancellationToken>())).ReturnsAsync(storedToken);
+        _mockRepo.Setup(r => r.RevokeRefreshTokenAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+
+        // NOTE: Act
+        await _authService.LogoutAsync(request);
+
+        // IMPORTANT: Device pruned for THIS user with the trimmed token
+        _mockDeviceRepo.Verify(r => r.RemoveByTokenAsync(userId, "fcm_device_token", It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    // IMPORTANT: TEST 29b - Logout without a device token does not touch the device registry
+    [Fact]
+    public async Task LogoutAsync_WithoutDeviceToken_DoesNotPrune()
+    {
+        // NOTE: Arrange
+        var request = new LogoutRequestDto { RefreshToken = "raw_refresh_token" };
+
+        var storedToken = new RefreshToken
+        {
+            RefreshTokenId = Guid.NewGuid(),
+            UserId = Guid.NewGuid(),
+            TokenHash = "hashed_refresh",
+            ExpiresAt = DateTime.UtcNow.AddDays(15),
+            IsRevoked = false
+        };
+
+        _mockRepo.Setup(r => r.GetRefreshTokenByHashAsync("hashed_refresh", It.IsAny<CancellationToken>())).ReturnsAsync(storedToken);
+        _mockRepo.Setup(r => r.RevokeRefreshTokenAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+
+        // NOTE: Act
+        await _authService.LogoutAsync(request);
+
+        // IMPORTANT: No device removal when no device token is supplied
+        _mockDeviceRepo.Verify(r => r.RemoveByTokenAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    // IMPORTANT: TEST 29c - An invalid refresh token short-circuits before any device pruning
+    [Fact]
+    public async Task LogoutAsync_WithUnknownToken_DoesNotPruneDevice()
+    {
+        // NOTE: Arrange — device token supplied but the refresh token is unknown
+        var request = new LogoutRequestDto
+        {
+            RefreshToken = "unknown_token",
+            DeviceToken = "fcm_device_token"
+        };
+
+        _mockRepo.Setup(r => r.GetRefreshTokenByHashAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync((RefreshToken?)null);
+
+        // NOTE: Act
+        await _authService.LogoutAsync(request);
+
+        // IMPORTANT: We never learned an owner, so nothing is pruned
+        _mockDeviceRepo.Verify(r => r.RemoveByTokenAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     // NOTE: FORGOT PASSWORD TESTS

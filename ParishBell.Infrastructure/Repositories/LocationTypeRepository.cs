@@ -28,7 +28,7 @@ public class LocationTypeRepository(ParishBellDbContext dbContext) : ILocationTy
             .AsNoTracking()
             .Where(t => t.IsActive)
             .OrderBy(t => t.SortOrder)
-            .Select(t => new { t.LocationTypeId, t.SortOrder })
+            .Select(t => new { t.LocationTypeId, t.LocationTypeCode, t.SortOrder })
             .ToListAsync(ct);
 
         if (types.Count == 0)
@@ -50,7 +50,7 @@ public class LocationTypeRepository(ParishBellDbContext dbContext) : ILocationTy
                 ?? translations.FirstOrDefault(x => x.LocationTypeId == t.LocationTypeId && x.LanguageId == englishId)?.Name
                 ?? string.Empty;
 
-            result.Add(new LocationTypeResult(t.LocationTypeId, t.SortOrder, name));
+            result.Add(new LocationTypeResult(t.LocationTypeId, t.LocationTypeCode, t.SortOrder, name));
         }
 
         return result;

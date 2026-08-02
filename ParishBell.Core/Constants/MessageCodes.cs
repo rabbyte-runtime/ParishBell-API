@@ -33,6 +33,38 @@ public static class MessageCodes
     public const string NoLanguagesFound = "PB-38";
     public const string LocationTypesRetrieved = "PB-39";
     public const string NoLocationTypesFound = "PB-40";
+    public const string LocationsRetrieved = "PB-41";
+    public const string NoLocationsFound = "PB-42";
+    public const string LocationDetailRetrieved = "PB-43";
+    public const string LocationNotFound = "PB-44";
+    public const string LocationEventsRetrieved = "PB-45";
+    public const string LocationFollowed = "PB-46";
+    public const string LocationUnfollowed = "PB-47";
+    public const string LocationFollowStatusRetrieved = "PB-48";
+    public const string FollowedLocationsRetrieved = "PB-49";
+    public const string LiturgicalCalendarRetrieved = "PB-50";
+    public const string LiturgicalCalendarInvalidFilter = "PB-51";
+    public const string FollowedEventsRetrieved = "PB-52";
+    public const string FollowedEventsInvalidFilter = "PB-53";
+    public const string LocationAnnouncementsRetrieved = "PB-54";
+    public const string LocationAnnouncementsForbidden = "PB-55";
+    public const string DeviceTokenRegistered = "PB-56";
+    public const string DeviceTokenRemoved = "PB-57";
+    public const string UserProfileRetrieved = "PB-61";
+    public const string UserProfileUpdated = "PB-62";
+    public const string UserEmailChangeNotAllowed = "PB-63";
+    public const string UserAccountDeleted = "PB-65";
+    public const string NotificationPreferencesRetrieved = "PB-66";
+    public const string NotificationPreferencesUpdated = "PB-67";
+    public const string NotificationsRetrieved = "PB-68";
+    public const string NotificationMarkedRead = "PB-69";
+    public const string NotificationsAllMarkedRead = "PB-70";
+    public const string NotificationUnreadCountRetrieved = "PB-71";
+    public const string MassScheduleRetrieved = "PB-72";
+    public const string MassScheduleInvalidFilter = "PB-73";
+    public const string MassReminderSaved = "PB-74";
+    public const string MassScheduleNotFound = "PB-75";
+    public const string MassReminderRemoved = "PB-77";
 
     // NOTE: Other
     public const string RateLimitExceeded = "PB-16";
@@ -47,4 +79,9 @@ public static class MessageCodes
     public const string ValidationConfirmPasswordRequired = "PB-23";
     public const string ValidationPreferredLanguageRequired = "PB-24";
     public const string ValidationProviderRequired = "PB-28";
+    public const string ValidationDeviceTokenRequired = "PB-58";
+    public const string ValidationDevicePlatformInvalid = "PB-59";
+    public const string ValidationAppVersionTooLong = "PB-60";
+    public const string ValidationPreferredLanguageInvalid = "PB-64";
+    public const string ValidationMinutesBeforeInvalid = "PB-76";
 }

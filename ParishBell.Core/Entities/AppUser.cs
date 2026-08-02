@@ -53,6 +53,30 @@ public partial class AppUser
     [Column("is_active")]
     public bool IsActive { get; set; }
 
+    /// <summary>
+    /// Push opt-in for new events at a followed location. Defaults TRUE.
+    /// </summary>
+    [Column("notify_events")]
+    public bool NotifyEvents { get; set; }
+
+    /// <summary>
+    /// Push opt-in for announcements at a followed location. Defaults TRUE.
+    /// </summary>
+    [Column("notify_announcements")]
+    public bool NotifyAnnouncements { get; set; }
+
+    /// <summary>
+    /// Push opt-in for the user's own mass reminders. Defaults TRUE.
+    /// </summary>
+    [Column("notify_mass_reminders")]
+    public bool NotifyMassReminders { get; set; }
+
+    /// <summary>
+    /// Push opt-in for feast days at a followed location. Defaults TRUE.
+    /// </summary>
+    [Column("notify_feast_days")]
+    public bool NotifyFeastDays { get; set; }
+
     [Column("created_at")]
     public DateTime CreatedAt { get; set; }
 

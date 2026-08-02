@@ -1,7 +1,10 @@
+using System.Text;
 using System.Threading.RateLimiting;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
 using ParishBell.API.Middleware;
 using ParishBell.Application.Services;
 using ParishBell.Core.Configuration;
@@ -11,6 +14,7 @@ using ParishBell.Infrastructure.BackgroundJobs;
 using ParishBell.Infrastructure.Caching;
 using ParishBell.Infrastructure.Data;
 using ParishBell.Infrastructure.Email;
+using ParishBell.Infrastructure.Push;
 using ParishBell.Infrastructure.Repositories;
 using ParishBell.Infrastructure.Security;
 
@@ -44,6 +48,20 @@ builder.Services.AddScoped<IMessageCache, MessageCache>();
 // NOTE: Register email service
 builder.Services.AddScoped<IEmailService, SendGridEmailService>();
 
+// NOTE: Firebase Cloud Messaging (push notifications) — credentials come from user-secrets
+builder.Services.Configure<FcmSettings>(builder.Configuration.GetSection("Fcm"));
+builder.Services.AddSingleton<FirebaseAppInitializer>();
+builder.Services.AddScoped<IPushNotificationService, FcmPushNotificationService>();
+
+// NOTE: Announcement push fan-out — background outbox over notifications_log. Announcements are
+//       authored in the admin backend (shared DB); this job notifies each location's followers.
+var announcementPushSettings = builder.Configuration.GetSection("AnnouncementPush").Get<AnnouncementPushSettings>()
+    ?? new AnnouncementPushSettings();
+builder.Services.AddSingleton(announcementPushSettings);
+builder.Services.AddScoped<IAnnouncementNotificationRepository, AnnouncementNotificationRepository>();
+builder.Services.AddScoped<IAnnouncementNotificationService, AnnouncementNotificationService>();
+builder.Services.AddHostedService<AnnouncementPushJob>();
+
 // NOTE: Add hosted services
 builder.Services.AddHostedService<MessageCacheStartupService>();
 builder.Services.AddHostedService<MessageCacheRefreshJob>();
@@ -54,12 +72,53 @@ builder.Services.AddScoped<IAuthRepository, AuthRepository>();
 builder.Services.AddScoped<IPasswordHasher, PasswordHasher>();
 builder.Services.Configure<JwtSettings>(builder.Configuration.GetSection("JwtSettings"));
 builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
+
+// NOTE: JWT bearer authentication — validates tokens issued by GenerateAccessToken
+var jwtSettings = builder.Configuration.GetSection("JwtSettings").Get<JwtSettings>()
+    ?? throw new InvalidOperationException("JwtSettings section is missing from configuration.");
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidateAudience = true,
+            ValidateLifetime = true,
+            ValidateIssuerSigningKey = true,
+            ValidIssuer = jwtSettings.Issuer,
+            ValidAudience = jwtSettings.Audience,
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSettings.SecretKey)),
+            // NOTE: Zero clock skew — access tokens are short-lived (15 min), no grace period needed
+            ClockSkew = TimeSpan.Zero
+        };
+    });
+builder.Services.AddAuthorization();
 builder.Services.AddScoped<IExternalAuthValidator, GoogleAuthValidator>();
 builder.Services.AddScoped<IPasswordResetRepository, PasswordResetRepository>();
 builder.Services.AddScoped<ILanguageRepository, LanguageRepository>();
 builder.Services.AddScoped<ILanguageService, LanguageService>();
 builder.Services.AddScoped<ILocationTypeRepository, LocationTypeRepository>();
 builder.Services.AddScoped<ILocationTypeService, LocationTypeService>();
+builder.Services.AddScoped<ILocationRepository, LocationRepository>();
+builder.Services.AddScoped<ILocationService, LocationService>();
+builder.Services.AddScoped<IEventRepository, EventRepository>();
+builder.Services.AddScoped<IEventService, EventService>();
+builder.Services.AddScoped<ILocationFollowRepository, LocationFollowRepository>();
+builder.Services.AddScoped<ILocationFollowService, LocationFollowService>();
+builder.Services.AddScoped<IAnnouncementRepository, AnnouncementRepository>();
+builder.Services.AddScoped<IAnnouncementService, AnnouncementService>();
+builder.Services.AddScoped<IUserRepository, UserRepository>();
+builder.Services.AddScoped<IUserService, UserService>();
+builder.Services.AddScoped<IUserNotificationRepository, UserNotificationRepository>();
+builder.Services.AddScoped<IUserNotificationService, UserNotificationService>();
+builder.Services.AddScoped<IUserDeviceRepository, UserDeviceRepository>();
+builder.Services.AddScoped<IUserDeviceService, UserDeviceService>();
+builder.Services.AddScoped<ILiturgicalCalendarRepository, LiturgicalCalendarRepository>();
+builder.Services.AddScoped<ILiturgicalCalendarService, LiturgicalCalendarService>();
+builder.Services.AddScoped<IMassScheduleRepository, MassScheduleRepository>();
+builder.Services.AddScoped<IMassScheduleService, MassScheduleService>();
+builder.Services.AddScoped<IMassReminderRepository, MassReminderRepository>();
+builder.Services.AddScoped<IMassReminderService, MassReminderService>();
 
 // NOTE: Load user secrets
 if (builder.Environment.IsDevelopment())
@@ -139,6 +198,10 @@ if (app.Environment.IsDevelopment())
 
 // NOTE: Redirect HTTP requests to HTTPS
 app.UseHttpsRedirection();
+
+// NOTE: Authentication must come before Authorization in the pipeline
+app.UseAuthentication();
+app.UseAuthorization();
 
 // NOTE: Enable rate limiting
 app.UseRateLimiter();

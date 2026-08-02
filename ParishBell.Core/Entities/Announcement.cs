@@ -36,6 +36,12 @@ public partial class Announcement
     public int DurationSeconds { get; set; }
 
     /// <summary>
+    /// Optional Azure Blob Storage URL for the video poster / audio cover art. NULL when none.
+    /// </summary>
+    [Column("thumbnail_url")]
+    public string? ThumbnailUrl { get; set; }
+
+    /// <summary>
     /// Between created_at+1hr and created_at+7days. Background job sets is_active=FALSE on expiry.
     /// </summary>
     [Column("expires_at")]

@@ -64,6 +64,7 @@ public static class MessageCodes
     public const string MassScheduleInvalidFilter = "PB-73";
     public const string MassReminderSaved = "PB-74";
     public const string MassScheduleNotFound = "PB-75";
+    public const string MassReminderRemoved = "PB-77";
 
     // NOTE: Other
     public const string RateLimitExceeded = "PB-16";

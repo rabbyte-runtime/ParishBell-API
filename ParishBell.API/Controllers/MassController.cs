@@ -57,4 +57,17 @@ public class MassController(IMassScheduleService massScheduleService, IMassRemin
         var response = ApiResponseBuilder.Build(HttpContext, _messages, StatusCodes.Status200OK, MessageCodes.MassReminderSaved, result);
         return StatusCode(response.Status, response);
     }
+
+    // NOTE: DELETE /api/v1/mass/reminders/{reminderId}
+    // IMPORTANT: Requires User JWT. Scoped to the caller - another user's reminder id returns 404, not 403.
+    // IMPORTANT: Cancels rather than erases: the row is kept switched off, so the schedule endpoint reports it as isActive:false and POSTing again revives it.
+    // NOTE: Idempotent - cancelling an already-cancelled reminder succeeds.
+    [HttpDelete("reminders/{reminderId:guid}")]
+    public async Task<IActionResult> RemoveMassReminder(Guid reminderId, CancellationToken ct)
+    {
+        var userId = User.GetUserId();
+        await _reminderService.RemoveReminderAsync(userId, reminderId, ct);
+        var response = ApiResponseBuilder.Build<object?>(HttpContext, _messages, StatusCodes.Status200OK, MessageCodes.MassReminderRemoved, null);
+        return StatusCode(response.Status, response);
+    }
 }

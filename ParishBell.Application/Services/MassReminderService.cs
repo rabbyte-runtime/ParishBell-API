@@ -24,4 +24,11 @@ public class MassReminderService(IMassReminderRepository reminderRepository) : I
             IsActive = result.IsActive
         };
     }
+
+    public async Task RemoveReminderAsync(Guid userId, Guid reminderId, CancellationToken ct = default)
+    {
+        // IMPORTANT: Someone else's reminder id is indistinguishable from a missing one - both 404.
+        if (!await _reminderRepository.DisableAsync(userId, reminderId, ct))
+            throw new NotFoundException(MessageCodes.GeneralNotFound);
+    }
 }

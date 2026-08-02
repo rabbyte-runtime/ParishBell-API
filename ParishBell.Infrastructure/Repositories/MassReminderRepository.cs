@@ -70,4 +70,16 @@ public class MassReminderRepository(ParishBellDbContext dbContext) : IMassRemind
 
         return new MassReminderResult(reminder.ReminderId, reminder.MinutesBefore, reminder.IsActive);
     }
+
+    public async Task<bool> DisableAsync(Guid userId, Guid reminderId, CancellationToken ct = default)
+    {
+        // NOTE: Scoped to the owner so a caller cannot switch off another user's reminder. Re-cancelling an off one still matches.
+        // IMPORTANT: The row is kept rather than deleted - uq_user_schedule means re-setting the reminder reuses it, and the
+        //            schedule endpoint reports it as isActive:false so the bell can render off rather than unset.
+        var affected = await _dbContext.UserMassReminders
+            .Where(r => r.ReminderId == reminderId && r.UserId == userId)
+            .ExecuteUpdateAsync(s => s.SetProperty(r => r.IsActive, false), ct);
+
+        return affected > 0;
+    }
 }

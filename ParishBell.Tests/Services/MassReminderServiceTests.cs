@@ -107,7 +107,38 @@ public class MassReminderServiceTests
         Assert.True(result.IsActive);
     }
 
-    // IMPORTANT: TEST 5 - The reminder is always written for the caller, never for whoever the body might name
+    // IMPORTANT: TEST 5 - Cancelling a reminder the caller owns switches it off
+    [Fact]
+    public async Task RemoveReminder_WhenOwned_Succeeds()
+    {
+        // NOTE: Arrange
+        var reminderId = Guid.NewGuid();
+        _mockRepo
+            .Setup(r => r.DisableAsync(_userId, reminderId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+
+        // NOTE: Act
+        await _service.RemoveReminderAsync(_userId, reminderId);
+
+        // NOTE: Assert
+        _mockRepo.Verify(r => r.DisableAsync(_userId, reminderId, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    // IMPORTANT: TEST 6 - Someone else's reminder id is a 404, revealing nothing about its existence
+    [Fact]
+    public async Task RemoveReminder_WhenNotOwnedOrMissing_ThrowsNotFound()
+    {
+        // NOTE: Arrange
+        _mockRepo
+            .Setup(r => r.DisableAsync(It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(false);
+
+        // NOTE: Act & Assert
+        var exception = await Assert.ThrowsAsync<NotFoundException>(() => _service.RemoveReminderAsync(_userId, Guid.NewGuid()));
+        Assert.Equal(MessageCodes.GeneralNotFound, exception.MessageCode);
+    }
+
+    // IMPORTANT: TEST 7 - The reminder is always written for the caller, never for whoever the body might name
     [Fact]
     public async Task SetReminder_WritesForTheCallingUser()
     {

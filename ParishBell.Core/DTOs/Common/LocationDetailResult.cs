@@ -12,21 +12,16 @@ public record LocationDetailResult(
     string? Description,
     string? Address,
     List<LocationImageResult> Images,
-    List<MassScheduleResult> Schedules,
-    List<FeastDayResult> FeastDays
+
+    // NOTE: Weekly patterns, not dates - the service expands them, exactly as the followed-churches calendar does.
+    List<MassSchedulePatternResult> Schedules,
+    List<FeastDayResult> FeastDays,
+
+    // NOTE: Always false for an anonymous caller - the endpoint is public, so "not following" and "nobody asked" look the same.
+    bool IsFollowing
 );
 
 public record LocationImageResult(Guid ImageId, string ImageUrl, bool IsPrimary, int SortOrder);
-
-public record MassScheduleResult(
-    Guid ScheduleId,
-    int DayOfWeek,
-    TimeOnly MassTime,
-    bool IsSpecial,
-    DateOnly? ValidFrom,
-    DateOnly? ValidTo,
-    string? Label
-);
 
 public record FeastDayResult(
     Guid LocationFeastDayId,

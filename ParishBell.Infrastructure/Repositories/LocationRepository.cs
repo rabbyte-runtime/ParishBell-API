@@ -11,7 +11,7 @@ public class LocationRepository(ParishBellDbContext dbContext) : ILocationReposi
     private const string DefaultLanguageCode = "en";
 
     public async Task<List<LocationResult>> GetActiveLocationsAsync(string languageCode, decimal? minLat, decimal? maxLat,
-    decimal? minLng, decimal? maxLng, string? q, decimal? userLat, decimal? userLng, int? skip, int? take, CancellationToken ct = default)
+    decimal? minLng, decimal? maxLng, string? q, decimal? userLat, decimal? userLng, int? skip, int? take, Guid? userId = null, CancellationToken ct = default)
     {
         // NOTE: Resolve the requested language + English to their UUIDs
         var langs = await _dbContext.Languages.AsNoTracking().Where(l => l.LanguageCode == languageCode || l.LanguageCode == DefaultLanguageCode)
@@ -89,6 +89,14 @@ public class LocationRepository(ParishBellDbContext dbContext) : ILocationReposi
             .Where(t => locationIds.Contains(t.LocationId) && (t.LanguageId == requestedId || t.LanguageId == englishId))
             .Select(t => new { t.LocationId, t.LanguageId, t.Name, t.Address }).ToListAsync(ct);
 
+        // NOTE: One query for the whole page rather than a follow lookup per card. Anonymous callers skip it entirely.
+        var followedIds = userId is null
+            ? []
+            : await _dbContext.UserFollowedLocations.AsNoTracking()
+                .Where(f => f.UserId == userId.Value && locationIds.Contains(f.LocationId))
+                .Select(f => f.LocationId)
+                .ToListAsync(ct);
+
         var result = new List<LocationResult>(locations.Count);
         foreach (var loc in locations)
         {
@@ -110,7 +118,8 @@ public class LocationRepository(ParishBellDbContext dbContext) : ILocationReposi
                 address,
                 loc.Phone,
                 loc.Email,
-                loc.Website
+                loc.Website,
+                followedIds.Contains(loc.LocationId)
             ));
         }
 
@@ -181,14 +190,17 @@ public class LocationRepository(ParishBellDbContext dbContext) : ILocationReposi
                 address,
                 loc.Phone,
                 loc.Email,
-                loc.Website
+                loc.Website,
+
+                // NOTE: This list *is* the user's follows, so every row is followed by definition.
+                true
             ));
         }
 
         return result;
     }
 
-    public async Task<LocationDetailResult?> GetLocationByIdAsync(Guid locationId, string languageCode, CancellationToken ct = default)
+    public async Task<LocationDetailResult?> GetLocationByIdAsync(Guid locationId, string languageCode, DateOnly massFromDate, DateOnly massToDate, Guid? userId = null, CancellationToken ct = default)
     {
         // NOTE: Resolve the requested language + English to their UUIDs
         var langs = await _dbContext.Languages
@@ -232,11 +244,16 @@ public class LocationRepository(ParishBellDbContext dbContext) : ILocationReposi
             .ToListAsync(ct);
 
         // NOTE: Active schedules only — idx_ms_active covers LocationId + IsActive
+        // NOTE: A special is kept only when its window overlaps the requested range; the service does the day-level intersection.
         var rawSchedules = await _dbContext.MassSchedules
             .AsNoTracking()
-            .Where(s => s.LocationId == locationId && s.IsActive)
+            .Where(s => s.LocationId == locationId && s.IsActive
+                     && (!s.IsSpecial
+                         || ((s.ValidFrom == null || s.ValidFrom <= massToDate)
+                          && (s.ValidTo == null || s.ValidTo >= massFromDate))))
             .OrderBy(s => s.DayOfWeek)
             .ThenBy(s => s.MassTime)
+            .ThenBy(s => s.ScheduleId)
             .Select(s => new { s.ScheduleId, s.DayOfWeek, s.MassTime, s.IsSpecial, s.ValidFrom, s.ValidTo })
             .ToListAsync(ct);
 
@@ -249,11 +266,28 @@ public class LocationRepository(ParishBellDbContext dbContext) : ILocationReposi
                 .ToListAsync(ct)
             : [];
 
+        // IMPORTANT: Scoped to the caller - a reminder is personal. Anonymous callers skip the query and get no bells.
+        var reminders = userId is null || scheduleIds.Count == 0
+            ? []
+            : await _dbContext.UserMassReminders
+                .AsNoTracking()
+                .Where(r => r.UserId == userId.Value && scheduleIds.Contains(r.ScheduleId))
+                .Select(r => new { r.ReminderId, r.ScheduleId, r.MinutesBefore, r.IsActive })
+                .ToListAsync(ct);
+
         var schedules = rawSchedules.Select(s =>
         {
             var label = scheduleTranslations.FirstOrDefault(t => t.ScheduleId == s.ScheduleId && t.LanguageId == requestedId)?.Label
-                     ?? scheduleTranslations.FirstOrDefault(t => t.ScheduleId == s.ScheduleId && t.LanguageId == englishId)?.Label;
-            return new MassScheduleResult(s.ScheduleId, s.DayOfWeek, s.MassTime, s.IsSpecial, s.ValidFrom, s.ValidTo, label);
+                     ?? scheduleTranslations.FirstOrDefault(t => t.ScheduleId == s.ScheduleId && t.LanguageId == englishId)?.Label
+                     ?? string.Empty;
+
+            // NOTE: uq_user_schedule makes this at most one row per user and mass.
+            var reminder = reminders.FirstOrDefault(r => r.ScheduleId == s.ScheduleId);
+
+            // NOTE: The church is carried on every row so the shape matches the calendar's, even though it is redundant here.
+            return new MassSchedulePatternResult(
+                s.ScheduleId, locationId, name, s.DayOfWeek, s.MassTime, label, s.IsSpecial, s.ValidFrom, s.ValidTo,
+                reminder is null ? null : new MassReminderResult(reminder.ReminderId, reminder.MinutesBefore, reminder.IsActive));
         }).ToList();
 
         // NOTE: Parish-pinned feast days with liturgical calendar info
@@ -292,6 +326,11 @@ public class LocationRepository(ParishBellDbContext dbContext) : ILocationReposi
             return new FeastDayResult(f.LocationFeastDayId, f.IsHighlighted, f.IsHolyDay, f.IsRecurringAnnually, f.Month, f.Day, f.SpecificDate, title, desc);
         }).ToList();
 
+        // NOTE: Folded in here so opening the detail sheet is one call - it used to cost a separate GET .../follow.
+        var isFollowing = userId is not null
+            && await _dbContext.UserFollowedLocations.AsNoTracking()
+                .AnyAsync(f => f.UserId == userId.Value && f.LocationId == locationId, ct);
+
         return new LocationDetailResult(
             location.LocationId,
             location.LocationTypeId,
@@ -305,7 +344,8 @@ public class LocationRepository(ParishBellDbContext dbContext) : ILocationReposi
             address,
             images,
             schedules,
-            feastDays
+            feastDays,
+            isFollowing
         );
     }
 }

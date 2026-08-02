@@ -36,4 +36,11 @@ public class NotificationDto
     public Guid? EventId { get; set; }
     public Guid? AnnouncementId { get; set; }
     public Guid? CalendarId { get; set; }
+
+    // NOTE: MassReminder only - the mass this reminder was for, so the row can open that mass rather than dead-ending at the church.
+    public Guid? ScheduleId { get; set; }
+
+    // NOTE: "yyyy-MM-dd" for MassReminder and FeastDay - the day the row is about, so a tap can land on it in the calendar.
+    //       Null on Event and Announcement, which carry their own typed id instead.
+    public string? Date { get; set; }
 }

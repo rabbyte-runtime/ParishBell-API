@@ -13,4 +13,8 @@ public class LocationDto
     public string? Website { get; set; }
     // NOTE: Populated only when the caller supplies userLat/userLng. Null otherwise.
     public double? DistanceKm { get; set; }
+
+    // NOTE: Whether the caller follows this church, so the list and detail sheet render Join/Leave without a second call.
+    // IMPORTANT: This endpoint is public - an anonymous caller always gets false, which is not the same as "unknown".
+    public bool IsFollowing { get; set; }
 }

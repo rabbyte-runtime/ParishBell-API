@@ -17,13 +17,39 @@ public class LocationsController(ILocationService locationService, IEventService
     private readonly IAnnouncementService _announcementService = announcementService;
     private readonly IMessageCache _messages = messages;
 
+    // NOTE: Seven days inclusive of today - the "what's on this week" the church profile's mass tab shows.
+    private const int DefaultMassWindowDays = 6;
+
+    // NOTE: Room for a month view without letting a caller ask for years of expanded occurrences.
+    private const int MaxMassWindowDays = 62;
+
     // NOTE: GET /api/v1/locations/{locationId}
     // IMPORTANT: Public - no JWT required.
+    // NOTE: isFollowing is folded in when a token is present, so the detail sheet opens in one call instead of also hitting GET .../follow.
+    // NOTE: An anonymous caller always gets isFollowing:false - that is "not signed in", not "not following".
+    // NOTE: massSchedules are dated occurrences, the same shape GET /api/v1/mass/schedule returns - the client never projects weekdays onto dates itself.
+    // NOTE: Optional ?massFrom=&massTo= ("yyyy-MM-dd") pick the window; it defaults to the coming week. Capped at 62 days, and an inverted range is a 400.
+    // NOTE: Each occurrence carries the caller's reminder when a token is present, so the profile's bells work like the calendar's.
     [HttpGet("{locationId:guid}")]
-    public async Task<IActionResult> GetLocation(Guid locationId, [FromHeader(Name = "Accept-Language")] string? acceptLanguage, CancellationToken ct)
+    public async Task<IActionResult> GetLocation(
+        Guid locationId,
+        [FromHeader(Name = "Accept-Language")] string? acceptLanguage,
+        [FromQuery] DateOnly? massFrom,
+        [FromQuery] DateOnly? massTo,
+        CancellationToken ct)
     {
         var languageCode = string.IsNullOrWhiteSpace(acceptLanguage) ? "en" : acceptLanguage.Trim();
-        var result = await _locationService.GetLocationByIdAsync(locationId, languageCode, ct);
+
+        // NOTE: "This week" is what the profile's mass tab asks for, so that is what an unqualified call returns.
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var resolvedFrom = massFrom ?? today;
+        var resolvedTo = massTo ?? resolvedFrom.AddDays(DefaultMassWindowDays);
+
+        // IMPORTANT: Expansion is linear in the window, so an unbounded range would let one call fan out indefinitely.
+        if (resolvedTo < resolvedFrom || resolvedFrom.AddDays(MaxMassWindowDays) < resolvedTo)
+            throw new BadRequestException(MessageCodes.MassScheduleInvalidRange);
+
+        var result = await _locationService.GetLocationByIdAsync(locationId, languageCode, resolvedFrom, resolvedTo, User.GetUserIdOrNull(), ct);
         var response = ApiResponseBuilder.Build(HttpContext, _messages, StatusCodes.Status200OK, MessageCodes.LocationDetailRetrieved, result);
         return StatusCode(response.Status, response);
     }
@@ -78,7 +104,7 @@ public class LocationsController(ILocationService locationService, IEventService
     [FromQuery] int? pageSize, CancellationToken ct)
     {
         var languageCode = string.IsNullOrWhiteSpace(acceptLanguage) ? "en" : acceptLanguage.Trim();
-        var result = await _locationService.GetActiveLocationsAsync(languageCode, minLat, maxLat, minLng, maxLng, q, userLat, userLng, page, pageSize, ct);
+        var result = await _locationService.GetActiveLocationsAsync(languageCode, minLat, maxLat, minLng, maxLng, q, userLat, userLng, page, pageSize, User.GetUserIdOrNull(), ct);
         var response = ApiResponseBuilder.Build(HttpContext, _messages, StatusCodes.Status200OK, MessageCodes.LocationsRetrieved, result);
         return StatusCode(response.Status, response);
     }

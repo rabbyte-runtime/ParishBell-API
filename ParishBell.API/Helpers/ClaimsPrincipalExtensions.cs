@@ -19,4 +19,17 @@ public static class ClaimsPrincipalExtensions
 
         throw new UnauthorizedException(MessageCodes.GeneralUnauthorized);
     }
+
+    // NOTE: For endpoints that are public but answer differently when a token happens to be present - the location
+    //       list and detail, which fold in IsFollowing. Null means anonymous rather than a failed read.
+    public static Guid? GetUserIdOrNull(this ClaimsPrincipal user)
+    {
+        if (user.Identity?.IsAuthenticated != true)
+            return null;
+
+        var value = user.FindFirstValue(ClaimTypes.NameIdentifier)
+                 ?? user.FindFirstValue(JwtRegisteredClaimNames.Sub);
+
+        return Guid.TryParse(value, out var userId) ? userId : null;
+    }
 }

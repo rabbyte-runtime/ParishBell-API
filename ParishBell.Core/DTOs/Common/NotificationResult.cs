@@ -18,4 +18,14 @@ public record NotificationResult
 
     // NOTE: Feast days only - the liturgical_calendar entry behind the location_feast_days row.
     public Guid? CalendarId { get; init; }
+
+    // NOTE: Mass reminders only - the weekly slot the reminder fired for. notifications_log stores no date, so the
+    //       occurrence is reconstructed from these plus SentAt.
+    public int? MassDayOfWeek { get; init; }
+    public TimeOnly? MassTime { get; init; }
+
+    // NOTE: Feast days only - the calendar entry's own date, fixed or recurring, resolved against SentAt's year.
+    public DateOnly? FeastSpecificDate { get; init; }
+    public int? FeastMonth { get; init; }
+    public int? FeastDayOfMonth { get; init; }
 }

@@ -28,7 +28,12 @@ public class UserNotificationServiceTests
         Guid? locationId = null,
         Guid? calendarId = null,
         bool isRead = false,
-        DateTime? sentAt = null) =>
+        DateTime? sentAt = null,
+        int? massDayOfWeek = null,
+        TimeOnly? massTime = null,
+        DateOnly? feastSpecificDate = null,
+        int? feastMonth = null,
+        int? feastDayOfMonth = null) =>
         new()
         {
             NotificationId = Guid.NewGuid(),
@@ -39,7 +44,12 @@ public class UserNotificationServiceTests
             IsRead = isRead,
             ReferenceId = referenceId ?? Guid.NewGuid(),
             LocationId = locationId,
-            CalendarId = calendarId
+            CalendarId = calendarId,
+            MassDayOfWeek = massDayOfWeek,
+            MassTime = massTime,
+            FeastSpecificDate = feastSpecificDate,
+            FeastMonth = feastMonth,
+            FeastDayOfMonth = feastDayOfMonth
         };
 
     // NOTE: The repo returns whatever list the test provides, regardless of paging args.
@@ -116,12 +126,111 @@ public class UserNotificationServiceTests
         Assert.Null(dto.AnnouncementId);
     }
 
-    // IMPORTANT: TEST 4 - A mass reminder has no typed id of its own; the church is the tap target
+    // IMPORTANT: TEST 3b - A fixed feast reports its own date, whatever day the push went out
     [Fact]
-    public async Task GetNotifications_MassReminderRow_ExposesLocationOnly()
+    public async Task GetNotifications_FeastWithFixedDate_UsesThatDate()
     {
         // NOTE: Arrange
-        SetupRepoReturns([MakeResult(NotificationType.MassReminder, locationId: _locationId)]);
+        SetupRepoReturns([MakeResult(
+            NotificationType.FeastDay,
+            sentAt: new DateTime(2026, 8, 14, 6, 0, 0, DateTimeKind.Utc),
+            feastSpecificDate: new DateOnly(2026, 8, 15))]);
+
+        // NOTE: Act
+        var page = await _service.GetNotificationsAsync(_userId, null, null);
+
+        // NOTE: Assert
+        Assert.Equal("2026-08-15", Assert.Single(page.Items).Date);
+    }
+
+    // IMPORTANT: TEST 3c - A recurring feast is placed in the year it was sent
+    [Fact]
+    public async Task GetNotifications_RecurringFeast_ResolvesIntoTheSendYear()
+    {
+        // NOTE: Arrange — 15 August, notified the same day
+        SetupRepoReturns([MakeResult(
+            NotificationType.FeastDay,
+            sentAt: new DateTime(2026, 8, 15, 6, 0, 0, DateTimeKind.Utc),
+            feastMonth: 8,
+            feastDayOfMonth: 15)]);
+
+        // NOTE: Act
+        var page = await _service.GetNotificationsAsync(_userId, null, null);
+
+        // NOTE: Assert
+        Assert.Equal("2026-08-15", Assert.Single(page.Items).Date);
+    }
+
+    // IMPORTANT: TEST 3d - A January feast notified in late December belongs to the year starting, not the one ending
+    [Fact]
+    public async Task GetNotifications_RecurringFeastAcrossNewYear_RollsForward()
+    {
+        // NOTE: Arrange
+        SetupRepoReturns([MakeResult(
+            NotificationType.FeastDay,
+            sentAt: new DateTime(2026, 12, 30, 18, 0, 0, DateTimeKind.Utc),
+            feastMonth: 1,
+            feastDayOfMonth: 1)]);
+
+        // NOTE: Act
+        var page = await _service.GetNotificationsAsync(_userId, null, null);
+
+        // NOTE: Assert
+        Assert.Equal("2027-01-01", Assert.Single(page.Items).Date);
+    }
+
+    // IMPORTANT: TEST 3e - A recurring day that does not exist that year is dropped rather than guessed at
+    [Fact]
+    public async Task GetNotifications_RecurringFeastOnMissingDay_LeavesDateNull()
+    {
+        // NOTE: Arrange — 29 February in a non-leap year
+        SetupRepoReturns([MakeResult(
+            NotificationType.FeastDay,
+            sentAt: new DateTime(2026, 2, 27, 6, 0, 0, DateTimeKind.Utc),
+            feastMonth: 2,
+            feastDayOfMonth: 29)]);
+
+        // NOTE: Act
+        var page = await _service.GetNotificationsAsync(_userId, null, null);
+
+        // NOTE: Assert
+        Assert.Null(Assert.Single(page.Items).Date);
+    }
+
+    // IMPORTANT: TEST 3f - Events and announcements carry a typed id instead, so they get no date
+    [Fact]
+    public async Task GetNotifications_EventAndAnnouncement_HaveNoDateOrSchedule()
+    {
+        // NOTE: Arrange
+        SetupRepoReturns([
+            MakeResult(NotificationType.Event),
+            MakeResult(NotificationType.Announcement)
+        ]);
+
+        // NOTE: Act
+        var page = await _service.GetNotificationsAsync(_userId, null, null);
+
+        // NOTE: Assert
+        Assert.All(page.Items, dto =>
+        {
+            Assert.Null(dto.Date);
+            Assert.Null(dto.ScheduleId);
+        });
+    }
+
+    // IMPORTANT: TEST 4 - A mass reminder exposes the mass itself, plus the date it fired for
+    [Fact]
+    public async Task GetNotifications_MassReminderRow_ExposesScheduleAndDate()
+    {
+        // NOTE: Arrange — sent 17:30 on Wed 29 Jul 2026, half an hour before an 18:00 Wednesday mass
+        var scheduleId = Guid.NewGuid();
+        SetupRepoReturns([MakeResult(
+            NotificationType.MassReminder,
+            referenceId: scheduleId,
+            locationId: _locationId,
+            sentAt: new DateTime(2026, 7, 29, 17, 30, 0, DateTimeKind.Utc),
+            massDayOfWeek: 3,
+            massTime: new TimeOnly(18, 0))]);
 
         // NOTE: Act
         var page = await _service.GetNotificationsAsync(_userId, null, null);
@@ -130,9 +239,63 @@ public class UserNotificationServiceTests
         var dto = Assert.Single(page.Items);
         Assert.Equal("MassReminder", dto.Type);
         Assert.Equal(_locationId, dto.LocationId);
+        Assert.Equal(scheduleId, dto.ScheduleId);
+        Assert.Equal("2026-07-29", dto.Date);
         Assert.Null(dto.EventId);
         Assert.Null(dto.AnnouncementId);
         Assert.Null(dto.CalendarId);
+    }
+
+    // IMPORTANT: TEST 4b - A reminder that crosses midnight belongs to the next day's mass, not this one
+    [Fact]
+    public async Task GetNotifications_MassReminderAcrossMidnight_ResolvesToTheFollowingDay()
+    {
+        // NOTE: Arrange — sent 23:30 Wed for a 00:30 Thursday mass
+        SetupRepoReturns([MakeResult(
+            NotificationType.MassReminder,
+            sentAt: new DateTime(2026, 7, 29, 23, 30, 0, DateTimeKind.Utc),
+            massDayOfWeek: 4,
+            massTime: new TimeOnly(0, 30))]);
+
+        // NOTE: Act
+        var page = await _service.GetNotificationsAsync(_userId, null, null);
+
+        // NOTE: Assert
+        Assert.Equal("2026-07-30", Assert.Single(page.Items).Date);
+    }
+
+    // IMPORTANT: TEST 4c - A mass already past on the day it was sent belongs to next week's occurrence
+    [Fact]
+    public async Task GetNotifications_MassReminderWhenSlotAlreadyPassed_RollsToNextWeek()
+    {
+        // NOTE: Arrange — sent 19:00 Wed, but the Wednesday mass is at 06:30
+        SetupRepoReturns([MakeResult(
+            NotificationType.MassReminder,
+            sentAt: new DateTime(2026, 7, 29, 19, 0, 0, DateTimeKind.Utc),
+            massDayOfWeek: 3,
+            massTime: new TimeOnly(6, 30))]);
+
+        // NOTE: Act
+        var page = await _service.GetNotificationsAsync(_userId, null, null);
+
+        // NOTE: Assert
+        Assert.Equal("2026-08-05", Assert.Single(page.Items).Date);
+    }
+
+    // IMPORTANT: TEST 4d - A mass reminder whose schedule has since gone reports no date rather than a wrong one
+    [Fact]
+    public async Task GetNotifications_MassReminderWithoutSlot_LeavesDateNull()
+    {
+        // NOTE: Arrange — the schedule was deleted, so the repository resolved nothing
+        SetupRepoReturns([MakeResult(NotificationType.MassReminder, locationId: _locationId)]);
+
+        // NOTE: Act
+        var page = await _service.GetNotificationsAsync(_userId, null, null);
+
+        // NOTE: Assert
+        var dto = Assert.Single(page.Items);
+        Assert.Null(dto.Date);
+        Assert.NotNull(dto.ScheduleId);
     }
 
     // IMPORTANT: TEST 5 - Default paging is page 1 / 20, and one extra row is fetched to probe for a next page

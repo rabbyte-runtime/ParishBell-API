@@ -5,11 +5,13 @@ namespace ParishBell.Core.Interfaces;
 public interface ILocationService
 {
     // NOTE: Returns a paged list of active locations for the map view and list view.
+    // NOTE: userId is optional - these endpoints are public. Supply it to have IsFollowing resolved; omit it and every row comes back false.
     Task<LocationPageDto> GetActiveLocationsAsync(string languageCode, decimal? minLat, decimal? maxLat, decimal? minLng, decimal? maxLng, string? q,
-    decimal? userLat, decimal? userLng, int? page, int? pageSize, CancellationToken ct = default);
+    decimal? userLat, decimal? userLng, int? page, int? pageSize, Guid? userId = null, CancellationToken ct = default);
 
-    // NOTE: Returns location details for the given LocationId
-    Task<LocationDetailDto> GetLocationByIdAsync(Guid locationId, string languageCode, CancellationToken ct = default);
+    // NOTE: Returns location details for the given LocationId, including whether the caller follows it.
+    // NOTE: Mass times come back as dated occurrences over [massFrom, massTo], the same shape GET /api/v1/mass/schedule returns.
+    Task<LocationDetailDto> GetLocationByIdAsync(Guid locationId, string languageCode, DateOnly massFrom, DateOnly massTo, Guid? userId = null, CancellationToken ct = default);
 
     // NOTE: Returns a paged list of locations the user follows, most recently followed first.
     Task<LocationPageDto> GetFollowedLocationsAsync(Guid userId, string languageCode, int? page, int? pageSize, CancellationToken ct = default);

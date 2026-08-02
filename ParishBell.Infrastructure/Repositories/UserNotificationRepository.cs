@@ -57,6 +57,31 @@ public class UserNotificationRepository(ParishBellDbContext dbContext) : IUserNo
                 // NOTE: Feast days reference a location_feast_days row, which carries the calendar entry behind it.
                 CalendarId = n.Type == FeastDayType
                     ? _dbContext.LocationFeastDays.Where(f => f.LocationFeastDayId == n.ReferenceId).Select(f => (Guid?)f.CalendarId).FirstOrDefault()
+                    : null,
+
+                // NOTE: The mass slot, so the service can work out which occurrence this reminder was for - the log stores no date.
+                MassDayOfWeek = n.Type == MassReminderType
+                    ? _dbContext.MassSchedules.Where(s => s.ScheduleId == n.ReferenceId).Select(s => (int?)s.DayOfWeek).FirstOrDefault()
+                    : null,
+
+                MassTime = n.Type == MassReminderType
+                    ? _dbContext.MassSchedules.Where(s => s.ScheduleId == n.ReferenceId).Select(s => (TimeOnly?)s.MassTime).FirstOrDefault()
+                    : null,
+
+                // NOTE: Feast dates are either fixed or an annually recurring month/day; both come back and the service picks.
+                FeastSpecificDate = n.Type == FeastDayType
+                    ? _dbContext.LocationFeastDays.Where(f => f.LocationFeastDayId == n.ReferenceId)
+                        .Select(f => f.Calendar.SpecificDate).FirstOrDefault()
+                    : null,
+
+                FeastMonth = n.Type == FeastDayType
+                    ? _dbContext.LocationFeastDays.Where(f => f.LocationFeastDayId == n.ReferenceId)
+                        .Select(f => f.Calendar.Month).FirstOrDefault()
+                    : null,
+
+                FeastDayOfMonth = n.Type == FeastDayType
+                    ? _dbContext.LocationFeastDays.Where(f => f.LocationFeastDayId == n.ReferenceId)
+                        .Select(f => f.Calendar.Day).FirstOrDefault()
                     : null
             })
             .ToListAsync(ct);

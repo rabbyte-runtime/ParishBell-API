@@ -10,7 +10,7 @@ public class MassScheduleRepository(ParishBellDbContext dbContext) : IMassSchedu
     private readonly ParishBellDbContext _dbContext = dbContext;
     private const string DefaultLanguageCode = "en";
 
-    public async Task<List<FollowedMassScheduleResult>> GetForFollowedLocationsAsync(
+    public async Task<List<MassSchedulePatternResult>> GetForFollowedLocationsAsync(
         Guid userId,
         string languageCode,
         DateOnly fromDate,
@@ -79,7 +79,7 @@ public class MassScheduleRepository(ParishBellDbContext dbContext) : IMassSchedu
             .Select(r => new { r.ReminderId, r.ScheduleId, r.MinutesBefore, r.IsActive })
             .ToListAsync(ct);
 
-        var result = new List<FollowedMassScheduleResult>(schedules.Count);
+        var result = new List<MassSchedulePatternResult>(schedules.Count);
         foreach (var s in schedules)
         {
             var label = translations.FirstOrDefault(t => t.ScheduleId == s.ScheduleId && t.LanguageId == requestedId)?.Label
@@ -93,7 +93,7 @@ public class MassScheduleRepository(ParishBellDbContext dbContext) : IMassSchedu
             // NOTE: uq_user_schedule makes this at most one row per user and mass.
             var reminder = reminders.FirstOrDefault(r => r.ScheduleId == s.ScheduleId);
 
-            result.Add(new FollowedMassScheduleResult(
+            result.Add(new MassSchedulePatternResult(
                 s.ScheduleId,
                 s.LocationId,
                 locationName,

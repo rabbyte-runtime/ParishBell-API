@@ -1,8 +1,9 @@
 namespace ParishBell.Core.DTOs.Common;
 
-// NOTE: One mass time at a followed church. LocationName and Label are already resolved with English fallback by the repository.
-// NOTE: Distinct from MassScheduleResult, which serves one location's own detail page and so carries neither the church nor the caller's reminder.
-public record FollowedMassScheduleResult(
+// NOTE: A weekly mass slot as stored, before it is expanded onto real dates. Shared by both readers of mass times -
+// NOTE:  the calendar across followed churches, and one church's own profile - so there is a single shape for the concept.
+// NOTE: LocationName and Label are already resolved with English fallback by the repository.
+public record MassSchedulePatternResult(
     Guid ScheduleId,
     Guid LocationId,
     string LocationName,

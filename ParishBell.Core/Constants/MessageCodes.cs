@@ -68,6 +68,7 @@ public static class MessageCodes
     public const string EventDetailRetrieved = "PB-78";
     public const string EventNotFound = "PB-79";
     public const string MassRemindersRetrieved = "PB-80";
+    public const string MassScheduleInvalidRange = "PB-86";
     public const string UserProfilePhotoUpdated = "PB-81";
     public const string UserProfilePhotoRemoved = "PB-82";
 

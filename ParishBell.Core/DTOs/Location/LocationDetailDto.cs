@@ -1,3 +1,5 @@
+using ParishBell.Core.DTOs.Mass;
+
 namespace ParishBell.Core.DTOs.Location;
 
 public class LocationDetailDto
@@ -13,8 +15,19 @@ public class LocationDetailDto
     public string? Email { get; set; }
     public string? Website { get; set; }
     public List<LocationImageDto> Images { get; set; } = [];
-    public List<MassScheduleDto> MassSchedules { get; set; } = [];
+
+    // NOTE: Dated occurrences over the requested window, identical in shape to GET /api/v1/mass/schedule - one concept, one model.
+    // NOTE: Defaults to the coming week, so the profile's mass tab can render "what's on this week" without projecting dates itself.
+    public List<MassOccurrenceDto> MassSchedules { get; set; } = [];
+
+    // NOTE: The window the occurrences above were expanded over, echoed back so the client knows what it is looking at.
+    public string MassFrom { get; set; } = default!;
+    public string MassTo { get; set; } = default!;
     public List<LocationFeastDayDto> FeastDays { get; set; } = [];
+
+    // NOTE: Whether the caller follows this church, so the detail sheet renders Join/Leave without a second call.
+    // IMPORTANT: This endpoint is public - an anonymous caller always gets false, which is not the same as "unknown".
+    public bool IsFollowing { get; set; }
 }
 
 public class LocationImageDto
@@ -23,20 +36,6 @@ public class LocationImageDto
     public string ImageUrl { get; set; } = default!;
     public bool IsPrimary { get; set; }
     public int SortOrder { get; set; }
-}
-
-public class MassScheduleDto
-{
-    public Guid ScheduleId { get; set; }
-    // NOTE: 0=Sunday, 1=Monday ... 6=Saturday
-    public int DayOfWeek { get; set; }
-    // NOTE: "HH:mm" 24-hour format
-    public string MassTime { get; set; } = default!;
-    public bool IsSpecial { get; set; }
-    // NOTE: "yyyy-MM-dd" — non-null only when IsSpecial is true
-    public string? ValidFrom { get; set; }
-    public string? ValidTo { get; set; }
-    public string? Label { get; set; }
 }
 
 public class LocationFeastDayDto

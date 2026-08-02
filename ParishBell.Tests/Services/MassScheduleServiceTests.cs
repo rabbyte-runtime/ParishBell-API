@@ -23,7 +23,7 @@ public class MassScheduleServiceTests
         _service = new MassScheduleService(_mockRepo.Object);
     }
 
-    private FollowedMassScheduleResult MakeResult(
+    private MassSchedulePatternResult MakeResult(
         int dayOfWeek = 0,
         TimeOnly? massTime = null,
         bool isSpecial = false,
@@ -42,7 +42,7 @@ public class MassScheduleServiceTests
             ValidTo: validTo,
             Reminder: reminder);
 
-    private void SetupRepoReturns(List<FollowedMassScheduleResult> results) =>
+    private void SetupRepoReturns(List<MassSchedulePatternResult> results) =>
         _mockRepo
             .Setup(r => r.GetForFollowedLocationsAsync(
                 _userId, It.IsAny<string>(), It.IsAny<DateOnly>(), It.IsAny<DateOnly>(), It.IsAny<CancellationToken>()))

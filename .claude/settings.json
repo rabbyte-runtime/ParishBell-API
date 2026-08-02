@@ -62,7 +62,8 @@
       "Bash(cd /c/LTR/ParishBell/Source_codes/Clients/Android/app/src/main/java/org/parishbell/app/ui/calendar && ls -1 . */ 2>/dev/null; echo \"=== VM ===\"; ls -1 ../..//app 2>/dev/null; wc -l *.kt components/*.kt model/*.kt 2>/dev/null)",
       "Read(//c/LTR/ParishBell/**)",
       "Read(//c/LTR/ParishBell/Source_codes/Clients/Android/app/src/main/java/org/parishbell/app/ui/calendar/model/**)",
-      "Read(//c/LTR/ParishBell/Source_codes/Clients/Android/app/src/main/java/org/parishbell/app/ui/calendar/**)"
+      "Read(//c/LTR/ParishBell/Source_codes/Clients/Android/app/src/main/java/org/parishbell/app/ui/calendar/**)",
+      "PowerShell($out = \"C:\\\\Users\\\\rajit\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--LTR-ParishBell-Source-codes-APIs\\\\42025fb5-3f03-4f5d-a09a-17cf92086dbd\\\\scratchpad\\\\apibuild\"; dotnet build ParishBell.API/ParishBell.API.csproj --nologo -v q -p:BaseOutputPath=\"$out\\\\\" 2>&1 | Select-String -Pattern \"error|Build succeeded|Error\\\\\\(s\\\\\\)\" | Select-Object -First 8)"
     ],
     "additionalDirectories": [
       "C:\\Users\\rajit\\AppData\\Local\\Temp\\claude\\c--LTR-ParishBell-Source-codes-APIs\\74b2b2de-8f72-4016-8b57-28016b9d9ba7\\scratchpad",

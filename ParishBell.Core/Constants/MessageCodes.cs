@@ -65,6 +65,8 @@ public static class MessageCodes
     public const string MassReminderSaved = "PB-74";
     public const string MassScheduleNotFound = "PB-75";
     public const string MassReminderRemoved = "PB-77";
+    public const string EventDetailRetrieved = "PB-78";
+    public const string EventNotFound = "PB-79";
 
     // NOTE: Other
     public const string RateLimitExceeded = "PB-16";

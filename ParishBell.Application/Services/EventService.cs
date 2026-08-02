@@ -1,4 +1,6 @@
+using ParishBell.Core.Constants;
 using ParishBell.Core.DTOs.Location;
+using ParishBell.Core.Exceptions;
 using ParishBell.Core.Interfaces;
 
 namespace ParishBell.Application.Services;
@@ -6,6 +8,31 @@ namespace ParishBell.Application.Services;
 public class EventService(IEventRepository eventRepository) : IEventService
 {
     private readonly IEventRepository _eventRepository = eventRepository;
+
+    public async Task<EventDetailDto> GetEventByIdAsync(Guid eventId, string languageCode, CancellationToken ct = default)
+    {
+        // IMPORTANT: A link can outlive the event it points at, so "unpublished", "deleted" and "never existed" all land here as one 404.
+        var result = await _eventRepository.GetEventByIdAsync(eventId, languageCode, ct)
+            ?? throw new NotFoundException(MessageCodes.EventNotFound);
+
+        return new EventDetailDto
+        {
+            EventId = result.EventId,
+            LocationId = result.LocationId,
+            LocationName = result.LocationName,
+            EventDate = result.EventDate.ToString("yyyy-MM-dd"),
+            StartTime = result.StartTime?.ToString("HH:mm"),
+            EndTime = result.EndTime?.ToString("HH:mm"),
+            Title = result.Title,
+            Description = result.Description,
+            Images = [.. result.Images.Select(i => new EventImageDto
+            {
+                EventImageId = i.EventImageId,
+                ImageUrl = i.ImageUrl,
+                SortOrder = i.SortOrder
+            })]
+        };
+    }
 
     public async Task<EventPageDto> GetLocationEventsAsync(
         Guid locationId,

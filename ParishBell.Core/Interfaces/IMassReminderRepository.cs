@@ -4,6 +4,10 @@ namespace ParishBell.Core.Interfaces;
 
 public interface IMassReminderRepository
 {
+    // NOTE: Every reminder the user has set, with the mass and church behind it, ordered as a weekly agenda.
+    // NOTE: Reminders whose mass or church has since been hidden are left out - they can never fire again. Unfollowed churches stay, flagged.
+    Task<List<UserMassReminderResult>> GetForUserAsync(Guid userId, string languageCode, CancellationToken ct = default);
+
     // NOTE: Whether the mass exists and is still visible - an inactive schedule, or one at a church that is hidden, cannot be remembered.
     Task<bool> IsScheduleRemindableAsync(Guid scheduleId, CancellationToken ct = default);
 

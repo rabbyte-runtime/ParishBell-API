@@ -11,11 +11,12 @@ namespace ParishBell.API.Controllers;
 [ApiController]
 [Route("api/v1/users")]
 [Authorize]
-public class UsersController(IUserService userService, IUserNotificationService notificationService, IUserDeviceService deviceService, IMessageCache messages) : ControllerBase
+public class UsersController(IUserService userService, IUserNotificationService notificationService, IUserDeviceService deviceService, IMassReminderService reminderService, IMessageCache messages) : ControllerBase
 {
     private readonly IUserService _userService = userService;
     private readonly IUserNotificationService _notificationService = notificationService;
     private readonly IUserDeviceService _deviceService = deviceService;
+    private readonly IMassReminderService _reminderService = reminderService;
     private readonly IMessageCache _messages = messages;
 
     // NOTE: GET /api/v1/users/me
@@ -88,6 +89,24 @@ public class UsersController(IUserService userService, IUserNotificationService 
         var userId = User.GetUserId();
         await _notificationService.MarkAllReadAsync(userId, ct);
         var response = ApiResponseBuilder.Build<object?>(HttpContext, _messages, StatusCodes.Status200OK, MessageCodes.NotificationsAllMarkedRead, null);
+        return StatusCode(response.Status, response);
+    }
+
+    // NOTE: GET /api/v1/users/me/reminders
+    // IMPORTANT: Requires User JWT. Every mass reminder the caller has set, in one place - the calendar only shows them a month at a time.
+    // NOTE: A weekly agenda, ordered by dayOfWeek (0=Sunday) then massTime. No paging - a user has a handful of these.
+    // NOTE: Cancelled reminders are included as isActive:false so they can be revived; POST /api/v1/mass/reminders with the scheduleId does that.
+    // NOTE: isFollowing flags reminders at churches the caller has since unfollowed - those still fire, and this is the only screen that surfaces them.
+    // NOTE: Reminders whose mass or church has been hidden are left out entirely; they can never fire again.
+    [HttpGet("me/reminders")]
+    public async Task<IActionResult> GetMassReminders(
+        [FromHeader(Name = "Accept-Language")] string? acceptLanguage,
+        CancellationToken ct)
+    {
+        var languageCode = string.IsNullOrWhiteSpace(acceptLanguage) ? "en" : acceptLanguage.Trim();
+        var userId = User.GetUserId();
+        var result = await _reminderService.GetRemindersAsync(userId, languageCode, ct);
+        var response = ApiResponseBuilder.Build(HttpContext, _messages, StatusCodes.Status200OK, MessageCodes.MassRemindersRetrieved, result);
         return StatusCode(response.Status, response);
     }
 

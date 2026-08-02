@@ -9,6 +9,98 @@ namespace ParishBell.Infrastructure.Repositories;
 public class MassReminderRepository(ParishBellDbContext dbContext) : IMassReminderRepository
 {
     private readonly ParishBellDbContext _dbContext = dbContext;
+    private const string DefaultLanguageCode = "en";
+
+    public async Task<List<UserMassReminderResult>> GetForUserAsync(Guid userId, string languageCode, CancellationToken ct = default)
+    {
+        // NOTE: Resolve the requested language + English to their UUIDs
+        var langs = await _dbContext.Languages
+            .AsNoTracking()
+            .Where(l => l.LanguageCode == languageCode || l.LanguageCode == DefaultLanguageCode)
+            .Select(l => new { l.LanguageId, l.LanguageCode })
+            .ToListAsync(ct);
+
+        var englishId = langs.FirstOrDefault(l => l.LanguageCode == DefaultLanguageCode)?.LanguageId;
+        var requestedId = langs.FirstOrDefault(l => l.LanguageCode == languageCode)?.LanguageId ?? englishId;
+
+        // NOTE: A reminder on a hidden mass or church can never fire and has nothing to render, so it is dropped rather than listed.
+        // NOTE: Ordered as a weekly agenda - day, then time, then schedule for a stable order across churches sharing a slot.
+        var reminders = await _dbContext.UserMassReminders
+            .AsNoTracking()
+            .Where(r => r.UserId == userId && r.Schedule.IsActive
+                     && r.Schedule.Location.IsApproved && r.Schedule.Location.IsActive && !r.Schedule.Location.IsRejected)
+            .OrderBy(r => r.Schedule.DayOfWeek)
+            .ThenBy(r => r.Schedule.MassTime)
+            .ThenBy(r => r.ScheduleId)
+            .Select(r => new
+            {
+                r.ReminderId,
+                r.MinutesBefore,
+                r.IsActive,
+                r.ScheduleId,
+                r.Schedule.LocationId,
+                r.Schedule.DayOfWeek,
+                r.Schedule.MassTime,
+                r.Schedule.IsSpecial,
+                r.Schedule.ValidFrom,
+                r.Schedule.ValidTo
+            })
+            .ToListAsync(ct);
+
+        if (reminders.Count == 0)
+            return [];
+
+        var scheduleIds = reminders.Select(r => r.ScheduleId).ToList();
+        var locationIds = reminders.Select(r => r.LocationId).Distinct().ToList();
+
+        var translations = await _dbContext.MassScheduleTranslations
+            .AsNoTracking()
+            .Where(t => scheduleIds.Contains(t.ScheduleId) && (t.LanguageId == requestedId || t.LanguageId == englishId))
+            .Select(t => new { t.ScheduleId, t.LanguageId, t.Label })
+            .ToListAsync(ct);
+
+        var locationNames = await _dbContext.LocationTranslations
+            .AsNoTracking()
+            .Where(t => locationIds.Contains(t.LocationId) && (t.LanguageId == requestedId || t.LanguageId == englishId))
+            .Select(t => new { t.LocationId, t.LanguageId, t.Name })
+            .ToListAsync(ct);
+
+        // NOTE: Follow state is not part of the reminder - it is looked up so the list can flag ones the user has walked away from.
+        var followedLocationIds = await _dbContext.UserFollowedLocations
+            .AsNoTracking()
+            .Where(f => f.UserId == userId && locationIds.Contains(f.LocationId))
+            .Select(f => f.LocationId)
+            .ToListAsync(ct);
+
+        var result = new List<UserMassReminderResult>(reminders.Count);
+        foreach (var r in reminders)
+        {
+            var label = translations.FirstOrDefault(t => t.ScheduleId == r.ScheduleId && t.LanguageId == requestedId)?.Label
+                     ?? translations.FirstOrDefault(t => t.ScheduleId == r.ScheduleId && t.LanguageId == englishId)?.Label
+                     ?? string.Empty;
+
+            var locationName = locationNames.FirstOrDefault(t => t.LocationId == r.LocationId && t.LanguageId == requestedId)?.Name
+                            ?? locationNames.FirstOrDefault(t => t.LocationId == r.LocationId && t.LanguageId == englishId)?.Name
+                            ?? string.Empty;
+
+            result.Add(new UserMassReminderResult(
+                r.ReminderId,
+                r.MinutesBefore,
+                r.IsActive,
+                r.ScheduleId,
+                r.LocationId,
+                locationName,
+                r.DayOfWeek,
+                r.MassTime,
+                label,
+                r.IsSpecial,
+                r.ValidFrom,
+                r.ValidTo,
+                followedLocationIds.Contains(r.LocationId)));
+        }
+
+        return result;
+    }
 
     public async Task<bool> IsScheduleRemindableAsync(Guid scheduleId, CancellationToken ct = default)
     {

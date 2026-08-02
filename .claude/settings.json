@@ -58,7 +58,11 @@
       "Bash(cd /c/LTR/ParishBell/Source_codes/Clients/Android && ls -1 && echo \"--- notif files ---\" && find . -iname '*otification*' -not -path '*/build/*' -not -path '*/.git/*' | head -40)",
       "Read(//c/LTR/ParishBell/Source_codes/Clients/Android/**)",
       "Read(//c/LTR/ParishBell/Source_codes/Clients/Android/app/src/main/java/org/parishbell/app/data/api/**)",
-      "Read(//c/LTR/ParishBell/Source_codes/Clients/Android/app/src/main/java/org/parishbell/app/data/repository/**)"
+      "Read(//c/LTR/ParishBell/Source_codes/Clients/Android/app/src/main/java/org/parishbell/app/data/repository/**)",
+      "Bash(cd /c/LTR/ParishBell/Source_codes/Clients/Android/app/src/main/java/org/parishbell/app/ui/calendar && ls -1 . */ 2>/dev/null; echo \"=== VM ===\"; ls -1 ../..//app 2>/dev/null; wc -l *.kt components/*.kt model/*.kt 2>/dev/null)",
+      "Read(//c/LTR/ParishBell/**)",
+      "Read(//c/LTR/ParishBell/Source_codes/Clients/Android/app/src/main/java/org/parishbell/app/ui/calendar/model/**)",
+      "Read(//c/LTR/ParishBell/Source_codes/Clients/Android/app/src/main/java/org/parishbell/app/ui/calendar/**)"
     ],
     "additionalDirectories": [
       "C:\\Users\\rajit\\AppData\\Local\\Temp\\claude\\c--LTR-ParishBell-Source-codes-APIs\\74b2b2de-8f72-4016-8b57-28016b9d9ba7\\scratchpad",

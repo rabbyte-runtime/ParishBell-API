@@ -115,6 +115,8 @@ builder.Services.AddScoped<IUserDeviceRepository, UserDeviceRepository>();
 builder.Services.AddScoped<IUserDeviceService, UserDeviceService>();
 builder.Services.AddScoped<ILiturgicalCalendarRepository, LiturgicalCalendarRepository>();
 builder.Services.AddScoped<ILiturgicalCalendarService, LiturgicalCalendarService>();
+builder.Services.AddScoped<IMassScheduleRepository, MassScheduleRepository>();
+builder.Services.AddScoped<IMassScheduleService, MassScheduleService>();
 
 // NOTE: Load user secrets
 if (builder.Environment.IsDevelopment())

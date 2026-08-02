@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using ParishBell.API.Helpers;
 using ParishBell.Core.Constants;
+using ParishBell.Core.DTOs.Mass;
 using ParishBell.Core.Exceptions;
 using ParishBell.Core.Interfaces;
 
@@ -10,9 +11,10 @@ namespace ParishBell.API.Controllers;
 [ApiController]
 [Route("api/v1/mass")]
 [Authorize]
-public class MassController(IMassScheduleService massScheduleService, IMessageCache messages) : ControllerBase
+public class MassController(IMassScheduleService massScheduleService, IMassReminderService reminderService, IMessageCache messages) : ControllerBase
 {
     private readonly IMassScheduleService _massScheduleService = massScheduleService;
+    private readonly IMassReminderService _reminderService = reminderService;
     private readonly IMessageCache _messages = messages;
 
     // NOTE: GET /api/v1/mass/schedule
@@ -39,6 +41,20 @@ public class MassController(IMassScheduleService massScheduleService, IMessageCa
         var userId = User.GetUserId();
         var result = await _massScheduleService.GetFollowedMassSchedulesAsync(userId, languageCode, resolvedMonth, resolvedYear, ct);
         var response = ApiResponseBuilder.Build(HttpContext, _messages, StatusCodes.Status200OK, MessageCodes.MassScheduleRetrieved, result);
+        return StatusCode(response.Status, response);
+    }
+
+    // NOTE: POST /api/v1/mass/reminders
+    // IMPORTANT: Requires User JWT. Always sets the reminder for the token's own user - the caller cannot set one for another.
+    // NOTE: Idempotent upsert keyed by (user, schedule) - posting again re-times an existing reminder and switches a disabled one back on, rather than failing on uq_user_schedule.
+    // NOTE: Returns the saved reminder so the calendar can rebind the bell without re-fetching the month.
+    // NOTE: 404 when the mass does not exist or its church is no longer visible, 422 when minutesBefore falls outside 1-1440.
+    [HttpPost("reminders")]
+    public async Task<IActionResult> SetMassReminder([FromBody] SetMassReminderRequestDto request, CancellationToken ct)
+    {
+        var userId = User.GetUserId();
+        var result = await _reminderService.SetReminderAsync(userId, request, ct);
+        var response = ApiResponseBuilder.Build(HttpContext, _messages, StatusCodes.Status200OK, MessageCodes.MassReminderSaved, result);
         return StatusCode(response.Status, response);
     }
 }

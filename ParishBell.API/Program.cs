@@ -117,6 +117,8 @@ builder.Services.AddScoped<ILiturgicalCalendarRepository, LiturgicalCalendarRepo
 builder.Services.AddScoped<ILiturgicalCalendarService, LiturgicalCalendarService>();
 builder.Services.AddScoped<IMassScheduleRepository, MassScheduleRepository>();
 builder.Services.AddScoped<IMassScheduleService, MassScheduleService>();
+builder.Services.AddScoped<IMassReminderRepository, MassReminderRepository>();
+builder.Services.AddScoped<IMassReminderService, MassReminderService>();
 
 // NOTE: Load user secrets
 if (builder.Environment.IsDevelopment())

@@ -62,6 +62,8 @@ public static class MessageCodes
     public const string NotificationUnreadCountRetrieved = "PB-71";
     public const string MassScheduleRetrieved = "PB-72";
     public const string MassScheduleInvalidFilter = "PB-73";
+    public const string MassReminderSaved = "PB-74";
+    public const string MassScheduleNotFound = "PB-75";
 
     // NOTE: Other
     public const string RateLimitExceeded = "PB-16";
@@ -80,4 +82,5 @@ public static class MessageCodes
     public const string ValidationDevicePlatformInvalid = "PB-59";
     public const string ValidationAppVersionTooLong = "PB-60";
     public const string ValidationPreferredLanguageInvalid = "PB-64";
+    public const string ValidationMinutesBeforeInvalid = "PB-76";
 }

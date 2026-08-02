@@ -22,6 +22,7 @@ public class UserRepository(ParishBellDbContext dbContext) : IUserRepository
                 u.FullName,
                 u.Email,
                 u.ProfileImageUrl,
+                u.ProfilePhotoBlob,
                 u.AuthProvider,
                 u.IsActive,
                 u.CreatedAt,
@@ -42,6 +43,21 @@ public class UserRepository(ParishBellDbContext dbContext) : IUserRepository
         return await _dbContext.AppUsers
             .AsNoTracking()
             .AnyAsync(u => u.Email == email.ToLower() && u.UserId != userId, ct);
+    }
+
+    public async Task UpdateProfilePhotoBlobAsync(Guid userId, string? blobName, CancellationToken ct = default)
+    {
+        // NOTE: Null is a meaningful value here - it clears the upload rather than meaning "leave unchanged".
+        await _dbContext.AppUsers
+            .Where(u => u.UserId == userId)
+            .ExecuteUpdateAsync(s => s.SetProperty(u => u.ProfilePhotoBlob, blobName), ct);
+    }
+
+    public async Task UpdateProviderPhotoUrlAsync(Guid userId, string? imageUrl, CancellationToken ct = default)
+    {
+        await _dbContext.AppUsers
+            .Where(u => u.UserId == userId)
+            .ExecuteUpdateAsync(s => s.SetProperty(u => u.ProfileImageUrl, imageUrl), ct);
     }
 
     public async Task UpdateProfileAsync(Guid userId, string? fullName, string? email, Guid? preferredLanguage, CancellationToken ct = default)

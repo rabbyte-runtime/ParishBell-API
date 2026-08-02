@@ -17,6 +17,7 @@ public class UserServiceTests
     private readonly Mock<IAuthRepository> _mockAuthRepo;
     private readonly Mock<IPasswordHasher> _mockHasher;
     private readonly Mock<IExternalAuthValidator> _mockGoogleValidator;
+    private readonly Mock<IProfilePhotoStorage> _mockPhotoStorage;
     private readonly UserService _service;
 
     private readonly Guid _userId = Guid.NewGuid();
@@ -34,11 +35,19 @@ public class UserServiceTests
         _mockGoogleValidator = new Mock<IExternalAuthValidator>();
         _mockGoogleValidator.SetupGet(v => v.Provider).Returns(AuthProvider.Google);
 
+        _mockPhotoStorage = new Mock<IProfilePhotoStorage>();
+
+        // NOTE: The SAS URL is minted per response, so the double just returns a recognisable stand-in.
+        _mockPhotoStorage
+            .Setup(s => s.GetReadUrlAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((string blob, CancellationToken _) => $"https://blob/{blob}?sas");
+
         _service = new UserService(
             _mockRepo.Object,
             _mockLanguageRepo.Object,
             _mockAuthRepo.Object,
             _mockHasher.Object,
+            _mockPhotoStorage.Object,
             [_mockGoogleValidator.Object]);
     }
 
@@ -46,6 +55,7 @@ public class UserServiceTests
         short authProvider = 1,
         bool isActive = true,
         string? profileImageUrl = "https://blob/avatar.jpg",
+        string? profilePhotoBlob = null,
         DateTime? lastLoginAt = null,
         bool notifyEvents = true,
         bool notifyAnnouncements = true,
@@ -56,6 +66,7 @@ public class UserServiceTests
             "Rajitha Dassanayake",
             "rajitha@example.com",
             profileImageUrl,
+            profilePhotoBlob,
             authProvider,
             isActive,
             new DateTime(2026, 1, 4, 6, 15, 0, DateTimeKind.Utc),
@@ -298,7 +309,7 @@ public class UserServiceTests
         // NOTE: Arrange — the re-read after the write returns the updated row
         var newLanguageId = Guid.NewGuid();
         var updated = new UserProfileResult(
-            _userId, "Rajitha Dassanayake", "rajitha@example.com", null, 1, true,
+            _userId, "Rajitha Dassanayake", "rajitha@example.com", null, null, 1, true,
             new DateTime(2026, 1, 4, 6, 15, 0, DateTimeKind.Utc), null,
             newLanguageId, "ta", "Tamil", "தமிழ்",
             true, true, true, true);
@@ -670,5 +681,140 @@ public class UserServiceTests
         Assert.Equal(MessageCodes.AuthAccountInactive, exception.MessageCode);
         _mockHasher.Verify(h => h.Verify(It.IsAny<string>(), It.IsAny<string>()), Times.Never);
         VerifyNoDelete();
+    }
+
+    // IMPORTANT: TEST 32 - An uploaded photo wins over the provider one, and goes out as a minted SAS URL
+    [Fact]
+    public async Task GetProfile_WithUploadedPhoto_ReturnsSasUrlNotProviderUrl()
+    {
+        // NOTE: Arrange — the user has both a Google photo and an upload of their own
+        _mockRepo
+            .Setup(r => r.GetProfileAsync(_userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(MakeResult(
+                authProvider: 2,
+                profileImageUrl: "https://lh3.googleusercontent.com/a/abc123",
+                profilePhotoBlob: $"{_userId}.jpg"));
+
+        // NOTE: Act
+        var result = await _service.GetProfileAsync(_userId);
+
+        // NOTE: Assert
+        Assert.Equal($"https://blob/{_userId}.jpg?sas", result.ProfileImageUrl);
+        _mockPhotoStorage.Verify(s => s.GetReadUrlAsync($"{_userId}.jpg", It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    // IMPORTANT: TEST 33 - With no upload, the Google photo is handed back untouched - it is already a URL
+    [Fact]
+    public async Task GetProfile_WithoutUpload_FallsBackToProviderPhoto()
+    {
+        // NOTE: Arrange
+        _mockRepo
+            .Setup(r => r.GetProfileAsync(_userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(MakeResult(
+                authProvider: 2,
+                profileImageUrl: "https://lh3.googleusercontent.com/a/abc123",
+                profilePhotoBlob: null));
+
+        // NOTE: Act
+        var result = await _service.GetProfileAsync(_userId);
+
+        // NOTE: Assert
+        Assert.Equal("https://lh3.googleusercontent.com/a/abc123", result.ProfileImageUrl);
+        _mockPhotoStorage.Verify(s => s.GetReadUrlAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    // IMPORTANT: TEST 34 - An email user with neither gets null, and the app draws initials
+    [Fact]
+    public async Task GetProfile_WithNoPhotoAtAll_ReturnsNull()
+    {
+        // NOTE: Arrange
+        _mockRepo
+            .Setup(r => r.GetProfileAsync(_userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(MakeResult(profileImageUrl: null, profilePhotoBlob: null));
+
+        // NOTE: Act
+        var result = await _service.GetProfileAsync(_userId);
+
+        // NOTE: Assert
+        Assert.Null(result.ProfileImageUrl);
+    }
+
+    // IMPORTANT: TEST 35 - Uploading stores the blob, points the row at it, and answers with the new URL
+    [Fact]
+    public async Task UpdateProfilePhoto_StoresBlobAndPointsRowAtIt()
+    {
+        // NOTE: Arrange — the re-read after the write returns a row carrying the upload
+        var blobName = $"{_userId}.jpg";
+        _mockRepo
+            .SetupSequence(r => r.GetProfileAsync(_userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(MakeResult())
+            .ReturnsAsync(MakeResult(profilePhotoBlob: blobName));
+
+        _mockPhotoStorage
+            .Setup(s => s.UploadAsync(_userId, It.IsAny<Stream>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(blobName);
+
+        // NOTE: Act
+        using var content = new MemoryStream([1, 2, 3]);
+        var result = await _service.UpdateProfilePhotoAsync(_userId, content);
+
+        // NOTE: Assert
+        _mockPhotoStorage.Verify(s => s.UploadAsync(_userId, It.IsAny<Stream>(), It.IsAny<CancellationToken>()), Times.Once);
+        _mockRepo.Verify(r => r.UpdateProfilePhotoBlobAsync(_userId, blobName, It.IsAny<CancellationToken>()), Times.Once);
+        Assert.Equal($"https://blob/{blobName}?sas", result.ProfileImageUrl);
+    }
+
+    // IMPORTANT: TEST 36 - A deactivated account cannot push bytes into the container
+    [Fact]
+    public async Task UpdateProfilePhoto_WhenAccountInactive_ThrowsBeforeUploading()
+    {
+        // NOTE: Arrange
+        _mockRepo
+            .Setup(r => r.GetProfileAsync(_userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(MakeResult(isActive: false));
+
+        // NOTE: Act & Assert
+        using var content = new MemoryStream([1, 2, 3]);
+        var exception = await Assert.ThrowsAsync<UnauthorizedException>(() => _service.UpdateProfilePhotoAsync(_userId, content));
+        Assert.Equal(MessageCodes.AuthAccountInactive, exception.MessageCode);
+        _mockPhotoStorage.Verify(s => s.UploadAsync(It.IsAny<Guid>(), It.IsAny<Stream>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    // IMPORTANT: TEST 37 - Removing deletes the blob, clears the column, and falls back to the provider photo
+    [Fact]
+    public async Task RemoveProfilePhoto_DeletesBlobAndFallsBackToProviderPhoto()
+    {
+        // NOTE: Arrange
+        var blobName = $"{_userId}.jpg";
+        _mockRepo
+            .SetupSequence(r => r.GetProfileAsync(_userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(MakeResult(authProvider: 2, profileImageUrl: "https://lh3.googleusercontent.com/a/abc123", profilePhotoBlob: blobName))
+            .ReturnsAsync(MakeResult(authProvider: 2, profileImageUrl: "https://lh3.googleusercontent.com/a/abc123", profilePhotoBlob: null));
+
+        // NOTE: Act
+        var result = await _service.RemoveProfilePhotoAsync(_userId);
+
+        // NOTE: Assert
+        _mockPhotoStorage.Verify(s => s.DeleteAsync(blobName, It.IsAny<CancellationToken>()), Times.Once);
+        _mockRepo.Verify(r => r.UpdateProfilePhotoBlobAsync(_userId, null, It.IsAny<CancellationToken>()), Times.Once);
+        Assert.Equal("https://lh3.googleusercontent.com/a/abc123", result.ProfileImageUrl);
+    }
+
+    // IMPORTANT: TEST 38 - Removing one that was never set touches neither the container nor the row
+    [Fact]
+    public async Task RemoveProfilePhoto_WhenNoneUploaded_IsANoOp()
+    {
+        // NOTE: Arrange
+        _mockRepo
+            .Setup(r => r.GetProfileAsync(_userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(MakeResult(profilePhotoBlob: null));
+
+        // NOTE: Act
+        var result = await _service.RemoveProfilePhotoAsync(_userId);
+
+        // NOTE: Assert
+        _mockPhotoStorage.Verify(s => s.DeleteAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+        _mockRepo.Verify(r => r.UpdateProfilePhotoBlobAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+        Assert.NotNull(result);
     }
 }

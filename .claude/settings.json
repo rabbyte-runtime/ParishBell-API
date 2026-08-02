@@ -63,7 +63,17 @@
       "Read(//c/LTR/ParishBell/**)",
       "Read(//c/LTR/ParishBell/Source_codes/Clients/Android/app/src/main/java/org/parishbell/app/ui/calendar/model/**)",
       "Read(//c/LTR/ParishBell/Source_codes/Clients/Android/app/src/main/java/org/parishbell/app/ui/calendar/**)",
-      "PowerShell($out = \"C:\\\\Users\\\\rajit\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--LTR-ParishBell-Source-codes-APIs\\\\42025fb5-3f03-4f5d-a09a-17cf92086dbd\\\\scratchpad\\\\apibuild\"; dotnet build ParishBell.API/ParishBell.API.csproj --nologo -v q -p:BaseOutputPath=\"$out\\\\\" 2>&1 | Select-String -Pattern \"error|Build succeeded|Error\\\\\\(s\\\\\\)\" | Select-Object -First 8)"
+      "PowerShell($out = \"C:\\\\Users\\\\rajit\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--LTR-ParishBell-Source-codes-APIs\\\\42025fb5-3f03-4f5d-a09a-17cf92086dbd\\\\scratchpad\\\\apibuild\"; dotnet build ParishBell.API/ParishBell.API.csproj --nologo -v q -p:BaseOutputPath=\"$out\\\\\" 2>&1 | Select-String -Pattern \"error|Build succeeded|Error\\\\\\(s\\\\\\)\" | Select-Object -First 8)",
+      "Bash(echo \"---exit $?---\")",
+      "PowerShell(dotnet add ParishBell.Infrastructure/ParishBell.Infrastructure.csproj package Azure.Storage.Blobs 2>&1)",
+      "PowerShell(dotnet add ParishBell.Infrastructure/ParishBell.Infrastructure.csproj package Azure.Identity 2>&1)",
+      "PowerShell(dotnet add ParishBell.Infrastructure/ParishBell.Infrastructure.csproj package SixLabors.ImageSharp 2>&1)",
+      "PowerShell($out = \"C:\\\\Users\\\\rajit\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--LTR-ParishBell-Source-codes-APIs\\\\42025fb5-3f03-4f5d-a09a-17cf92086dbd\\\\scratchpad\\\\apibuild\"; dotnet build ParishBell.API/ParishBell.API.csproj --nologo -v q -p:BaseOutputPath=\"$out\\\\\" 2>&1 | Select-String -Pattern \"error|warning CS|Build succeeded|Error\\\\\\(s\\\\\\)\" | Select-Object -First 10)",
+      "PowerShell($out = \"C:\\\\Users\\\\rajit\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--LTR-ParishBell-Source-codes-APIs\\\\42025fb5-3f03-4f5d-a09a-17cf92086dbd\\\\scratchpad\\\\apibuild\"; dotnet build ParishBell.API/ParishBell.API.csproj --nologo -v q -p:BaseOutputPath=\"$out\\\\\" 2>&1 | Select-String -Pattern \"error|Build succeeded|Error\\\\\\(s\\\\\\)\" | Select-Object -First 10)",
+      "PowerShell($out = \"C:\\\\Users\\\\rajit\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--LTR-ParishBell-Source-codes-APIs\\\\42025fb5-3f03-4f5d-a09a-17cf92086dbd\\\\scratchpad\\\\apibuild\"; dotnet build ParishBell.API/ParishBell.API.csproj --nologo -v q -p:BaseOutputPath=\"$out\\\\\" 2>&1 | Select-String -Pattern \"error|Build succeeded|Error\\\\\\(s\\\\\\)\" | Select-Object -First 10; dotnet test ParishBell.Tests/ParishBell.Tests.csproj --nologo -v q 2>&1 | Select-String -Pattern \"error|Passed!|Failed:\" | Select-Object -First 8)",
+      "Bash(cd /c/LTR/ParishBell/Source_codes/Clients/Android/app/src/main/java/org/parishbell/app && ls -1 ui/profile/ ui/profile/*/ 2>/dev/null; echo \"=== profileImageUrl usage ===\"; grep -rn \"profileImageUrl\\\\|ProfileImageUrl\\\\|AsyncImage\\\\|Coil\\\\|coil\" --include=*.kt . | head -15)",
+      "Read(//c/LTR/ParishBell/Source_codes/Clients/Android/app/src/main/java/org/parishbell/app/**)",
+      "Bash(cd /c/LTR/ParishBell/Source_codes/Clients/Android/app/src/main/java/org/parishbell/app && sed -n '540,590p' ui/profile/ProfileScreen.kt; echo \"=== UserProfile model ===\"; cat ui/profile/model/UserProfile.kt; echo \"=== UserApi ===\"; grep -n \"users/me\" data/api/UserApi.kt)"
     ],
     "additionalDirectories": [
       "C:\\Users\\rajit\\AppData\\Local\\Temp\\claude\\c--LTR-ParishBell-Source-codes-APIs\\74b2b2de-8f72-4016-8b57-28016b9d9ba7\\scratchpad",

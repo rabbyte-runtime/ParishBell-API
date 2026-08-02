@@ -13,10 +13,12 @@ public class UserService(
     ILanguageRepository languageRepository,
     IAuthRepository authRepository,
     IPasswordHasher passwordHasher,
+    IProfilePhotoStorage photoStorage,
     IEnumerable<IExternalAuthValidator> externalAuthValidators) : IUserService
 {
     private readonly IUserRepository _userRepository = userRepository;
     private readonly ILanguageRepository _languageRepository = languageRepository;
+    private readonly IProfilePhotoStorage _photoStorage = photoStorage;
 
     // NOTE: Deletion re-checks the sign-up credential, so it needs the auth-side pieces too.
     private readonly IAuthRepository _authRepository = authRepository;
@@ -26,7 +28,37 @@ public class UserService(
     public async Task<UserProfileDto> GetProfileAsync(Guid userId, CancellationToken ct = default)
     {
         var profile = await LoadActiveProfileAsync(userId, ct);
-        return MapToDto(profile);
+        return await MapToDtoAsync(profile, ct);
+    }
+
+    public async Task<UserProfileDto> UpdateProfilePhotoAsync(Guid userId, Stream content, CancellationToken ct = default)
+    {
+        // IMPORTANT: Loaded first so a deactivated or deleted account cannot push bytes into the container.
+        await LoadActiveProfileAsync(userId, ct);
+
+        // NOTE: The blob name is derived from the user id, so this overwrites any previous upload rather than orphaning it.
+        var blobName = await _photoStorage.UploadAsync(userId, content, ct);
+        await _userRepository.UpdateProfilePhotoBlobAsync(userId, blobName, ct);
+
+        var updated = await LoadActiveProfileAsync(userId, ct);
+        return await MapToDtoAsync(updated, ct);
+    }
+
+    public async Task<UserProfileDto> RemoveProfilePhotoAsync(Guid userId, CancellationToken ct = default)
+    {
+        var profile = await LoadActiveProfileAsync(userId, ct);
+
+        if (profile.ProfilePhotoBlob is not null)
+        {
+            // NOTE: Blob first - a failure here leaves the row pointing at a photo that still exists, which is
+            //       recoverable. Clearing the column first would strand the blob with nothing referencing it.
+            await _photoStorage.DeleteAsync(profile.ProfilePhotoBlob, ct);
+            await _userRepository.UpdateProfilePhotoBlobAsync(userId, null, ct);
+        }
+
+        // NOTE: Removing the upload falls back to the Google/Apple photo, or to nothing - the app then shows initials.
+        var updated = await LoadActiveProfileAsync(userId, ct);
+        return await MapToDtoAsync(updated, ct);
     }
 
     public async Task<UserProfileDto> UpdateProfileAsync(Guid userId, UpdateProfileRequestDto request, CancellationToken ct = default)
@@ -39,13 +71,13 @@ public class UserService(
 
         // NOTE: Everything supplied already matches what's stored - skip the write and echo the profile back.
         if (fullName is null && email is null && preferredLanguage is null)
-            return MapToDto(current);
+            return await MapToDtoAsync(current, ct);
 
         await _userRepository.UpdateProfileAsync(userId, fullName, email, preferredLanguage, ct);
 
         // NOTE: Re-read so the response carries the stored values, including the language names of a new selection.
         var updated = await LoadActiveProfileAsync(userId, ct);
-        return MapToDto(updated);
+        return await MapToDtoAsync(updated, ct);
     }
 
     public async Task<NotificationPreferencesDto> GetNotificationPreferencesAsync(Guid userId, CancellationToken ct = default)
@@ -196,12 +228,24 @@ public class UserService(
         return profile;
     }
 
-    private static UserProfileDto MapToDto(UserProfileResult profile) => new()
+    // NOTE: The client sees one photo field and never learns which source won.
+    // NOTE: Precedence: the user's own upload, else the Google/Apple photo, else null - the app then draws initials.
+    private async Task<UserProfileDto> MapToDtoAsync(UserProfileResult profile, CancellationToken ct)
+    {
+        var photoUrl = profile.ProfilePhotoBlob is not null
+            // IMPORTANT: Minted per response and short-lived, so it must never be cached or persisted by the client.
+            ? await _photoStorage.GetReadUrlAsync(profile.ProfilePhotoBlob, ct)
+            : profile.ProfileImageUrl;
+
+        return MapToDto(profile, photoUrl);
+    }
+
+    private static UserProfileDto MapToDto(UserProfileResult profile, string? photoUrl) => new()
     {
         UserId = profile.UserId,
         FullName = profile.FullName,
         Email = profile.Email,
-        ProfileImageUrl = profile.ProfileImageUrl,
+        ProfileImageUrl = photoUrl,
         AuthProvider = (AuthProvider)profile.AuthProvider,
         PreferredLanguage = profile.PreferredLanguage,
         PreferredLanguageCode = profile.PreferredLanguageCode,

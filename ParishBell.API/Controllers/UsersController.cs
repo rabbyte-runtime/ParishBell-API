@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.RateLimiting;
 using ParishBell.API.Helpers;
 using ParishBell.Core.Constants;
 using ParishBell.Core.DTOs.User;
+using ParishBell.Core.Exceptions;
 using ParishBell.Core.Interfaces;
 
 namespace ParishBell.API.Controllers;
@@ -18,6 +19,9 @@ public class UsersController(IUserService userService, IUserNotificationService 
     private readonly IUserDeviceService _deviceService = deviceService;
     private readonly IMassReminderService _reminderService = reminderService;
     private readonly IMessageCache _messages = messages;
+
+    // NOTE: Mirrors BlobStorageSettings.MaxUploadBytes - must be a constant for the RequestSizeLimit attribute.
+    private const int MaxPhotoBytes = 12 * 1024 * 1024;
 
     // NOTE: GET /api/v1/users/me
     // IMPORTANT: Requires User JWT. The profile returned is always the token's own user - the caller cannot ask for another.
@@ -41,6 +45,43 @@ public class UsersController(IUserService userService, IUserNotificationService 
         var userId = User.GetUserId();
         var result = await _userService.UpdateProfileAsync(userId, request, ct);
         var response = ApiResponseBuilder.Build(HttpContext, _messages, StatusCodes.Status200OK, MessageCodes.UserProfileUpdated, result);
+        return StatusCode(response.Status, response);
+    }
+
+    // NOTE: PUT /api/v1/users/me/photo
+    // IMPORTANT: Requires User JWT. Multipart form upload under the field name "photo". Replaces whatever the user had.
+    // NOTE: Open to every provider - a Google or Apple user may override their account photo with one of their own.
+    // NOTE: The image is cropped square and re-encoded server-side, so the stored photo is ours, not the uploaded bytes.
+    // NOTE: Returns the profile with a freshly minted photo URL. 422 when the file is missing, oversized, or not a decodable image.
+    [HttpPut("me/photo")]
+    [RequestSizeLimit(MaxPhotoBytes)]
+    public async Task<IActionResult> UpdatePhoto(IFormFile? photo, CancellationToken ct)
+    {
+        if (photo is null || photo.Length == 0)
+            throw new UnprocessableException(MessageCodes.ValidationPhotoRequired);
+
+        // NOTE: Checked here as well as by RequestSizeLimit, which rejects at the pipeline with no coded message.
+        if (photo.Length > MaxPhotoBytes)
+            throw new UnprocessableException(MessageCodes.ValidationPhotoTooLarge);
+
+        var userId = User.GetUserId();
+
+        await using var stream = photo.OpenReadStream();
+        var result = await _userService.UpdateProfilePhotoAsync(userId, stream, ct);
+
+        var response = ApiResponseBuilder.Build(HttpContext, _messages, StatusCodes.Status200OK, MessageCodes.UserProfilePhotoUpdated, result);
+        return StatusCode(response.Status, response);
+    }
+
+    // NOTE: DELETE /api/v1/users/me/photo
+    // IMPORTANT: Requires User JWT. Removes the blob and clears the column, so the Google/Apple photo takes over again - or nothing does, and the app draws initials.
+    // NOTE: Idempotent - a user who never uploaded one still gets a 200 and their profile back.
+    [HttpDelete("me/photo")]
+    public async Task<IActionResult> RemovePhoto(CancellationToken ct)
+    {
+        var userId = User.GetUserId();
+        var result = await _userService.RemoveProfilePhotoAsync(userId, ct);
+        var response = ApiResponseBuilder.Build(HttpContext, _messages, StatusCodes.Status200OK, MessageCodes.UserProfilePhotoRemoved, result);
         return StatusCode(response.Status, response);
     }
 

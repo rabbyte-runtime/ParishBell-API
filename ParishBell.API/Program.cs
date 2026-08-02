@@ -1,9 +1,12 @@
 using System.Text;
 using System.Threading.RateLimiting;
+using Azure.Identity;
+using Azure.Storage.Blobs;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using ParishBell.API.Middleware;
 using ParishBell.Application.Services;
@@ -17,6 +20,7 @@ using ParishBell.Infrastructure.Email;
 using ParishBell.Infrastructure.Push;
 using ParishBell.Infrastructure.Repositories;
 using ParishBell.Infrastructure.Security;
+using ParishBell.Infrastructure.Storage;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -47,6 +51,18 @@ builder.Services.AddScoped<IMessageCache, MessageCache>();
 
 // NOTE: Register email service
 builder.Services.AddScoped<IEmailService, SendGridEmailService>();
+
+// NOTE: Azure Blob Storage — profile photos. Containers are split by purpose; this one is private, so reads go
+//       out as short-lived user delegation SAS URLs.
+// IMPORTANT: No account key anywhere. DefaultAzureCredential uses the App Service managed identity in Azure and the
+//            developer's `az login` locally — both need Storage Blob Data Contributor on the account, or SAS minting fails.
+builder.Services.Configure<BlobStorageSettings>(builder.Configuration.GetSection("BlobStorage"));
+builder.Services.AddSingleton(sp =>
+{
+    var settings = sp.GetRequiredService<IOptions<BlobStorageSettings>>().Value;
+    return new BlobServiceClient(new Uri(settings.AccountUrl), new DefaultAzureCredential());
+});
+builder.Services.AddSingleton<IProfilePhotoStorage, AzureProfilePhotoStorage>();
 
 // NOTE: Firebase Cloud Messaging (push notifications) — credentials come from user-secrets
 builder.Services.Configure<FcmSettings>(builder.Configuration.GetSection("Fcm"));

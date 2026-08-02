@@ -19,7 +19,8 @@ public partial class AuthService(
     IOptions<PasswordResetSettings> passwordResetOptions,
     IMessageCache messageCache,
     IEnumerable<IExternalAuthValidator> externalAuthValidators,
-    IUserDeviceRepository userDeviceRepository) : IAuthService
+    IUserDeviceRepository userDeviceRepository,
+    IUserRepository userRepository) : IAuthService
 {
     // NOTE: Dependencies for authentication
     private readonly IAuthRepository _authRepository = authRepository;
@@ -30,6 +31,9 @@ public partial class AuthService(
     private readonly PasswordResetSettings _passwordResetSettings = passwordResetOptions.Value;
     private readonly IMessageCache _messageCache = messageCache;
     private readonly IUserDeviceRepository _userDeviceRepository = userDeviceRepository;
+
+    // NOTE: Only for keeping the stored provider photo current at login - profile writes belong to UserService.
+    private readonly IUserRepository _userRepository = userRepository;
 
     // NOTE: All registered external auth validators (Google only as of now)
     private readonly IEnumerable<IExternalAuthValidator> _externalAuthValidators = externalAuthValidators;
@@ -140,6 +144,10 @@ public partial class AuthService(
             PasswordHash = null, // IMPORTANT: Social users have no passwords
             AuthProvider = (short)provider,
             AuthProviderId = verifiedInfo.ProviderUserId,
+
+            // NOTE: The provider's account photo, shown until the user uploads one of their own.
+            ProfileImageUrl = verifiedInfo.PictureUrl,
+
             PreferredLanguage = request.PreferredLanguage,
             IsActive = true,
             CreatedAt = DateTime.UtcNow
@@ -256,7 +264,14 @@ public partial class AuthService(
 
         // IMPORTANT: User exists for this Google account - return it
         if (user is not null)
+        {
+            // NOTE: Provider photo URLs rotate, so a stored one goes stale. Refreshed on every login rather than only at sign-up.
+            // NOTE: An upload of their own takes precedence when the profile is read, so this never overrides a custom photo.
+            if (user.ProfileImageUrl != verifiedInfo.PictureUrl)
+                await _userRepository.UpdateProviderPhotoUrlAsync(user.UserId, verifiedInfo.PictureUrl, ct);
+
             return user;
+        }
 
         // NOTE: No social account exists - check if the email is registered with another provider
         var existingByEmail = await _authRepository.GetUserByEmailAsync(verifiedInfo.Email, ct);

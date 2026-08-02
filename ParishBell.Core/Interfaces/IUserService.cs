@@ -11,6 +11,14 @@ public interface IUserService
     //       Omitted fields are left alone; a request that changes nothing is a no-op.
     Task<UserProfileDto> UpdateProfileAsync(Guid userId, UpdateProfileRequestDto request, CancellationToken ct = default);
 
+    // NOTE: Stores an uploaded photo and points the user at it, returning the profile so the app can rebind.
+    // NOTE: Available to every provider - a Google or Apple user may override their account photo with their own.
+    Task<UserProfileDto> UpdateProfilePhotoAsync(Guid userId, Stream content, CancellationToken ct = default);
+
+    // NOTE: Deletes the uploaded photo and clears the column, falling back to the provider photo or to none at all.
+    // NOTE: Idempotent - a user who never uploaded one still gets their profile back.
+    Task<UserProfileDto> RemoveProfilePhotoAsync(Guid userId, CancellationToken ct = default);
+
     // NOTE: The signed-in user's push opt-ins.
     Task<NotificationPreferencesDto> GetNotificationPreferencesAsync(Guid userId, CancellationToken ct = default);
 

@@ -47,7 +47,8 @@ public class GoogleAuthValidator(IOptions<GoogleAuthSettings> options) : IExtern
             ProviderUserId = payload.Subject,          // NOTE: Google's unique user ID (sub claim)
             Email = payload.Email.ToLowerInvariant(),
             FullName = payload.Name ?? string.Empty,   // NOTE: Google's display name
-            EmailVerified = payload.EmailVerified
+            EmailVerified = payload.EmailVerified,
+            PictureUrl = payload.Picture               // NOTE: Google's account photo - absent on accounts without one
         };
     }
 }

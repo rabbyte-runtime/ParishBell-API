@@ -44,8 +44,20 @@ public partial class AppUser
     [Column("auth_provider_id")]
     public string? AuthProviderId { get; set; }
 
+    /// <summary>
+    /// The Google/Apple account photo, refreshed at every social login. NULL for email users.
+    /// </summary>
     [Column("profile_image_url")]
     public string? ProfileImageUrl { get; set; }
+
+    /// <summary>
+    /// Blob name of a photo the user uploaded themselves, in the profile-photos container. Takes precedence over
+    /// the provider photo. NULL when they have not uploaded one. Never a URL - the container is private, so the
+    /// read URL is a short-lived SAS minted per request.
+    /// </summary>
+    [Column("profile_photo_blob")]
+    [StringLength(255)]
+    public string? ProfilePhotoBlob { get; set; }
 
     [Column("preferred_language")]
     public Guid PreferredLanguage { get; set; }

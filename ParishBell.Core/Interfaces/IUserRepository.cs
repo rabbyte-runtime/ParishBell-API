@@ -14,6 +14,12 @@ public interface IUserRepository
     // NOTE: Writes only the non-null arguments; nulls mean "leave unchanged". No-op when the user row is gone.
     Task UpdateProfileAsync(Guid userId, string? fullName, string? email, Guid? preferredLanguage, CancellationToken ct = default);
 
+    // NOTE: Points the user at an uploaded photo, or clears it with null so the provider photo takes over again.
+    Task UpdateProfilePhotoBlobAsync(Guid userId, string? blobName, CancellationToken ct = default);
+
+    // NOTE: Stores the latest Google/Apple account photo. Refreshed at every social login, since those URLs rotate.
+    Task UpdateProviderPhotoUrlAsync(Guid userId, string? imageUrl, CancellationToken ct = default);
+
     // NOTE: Writes only the switches that were supplied; nulls mean "leave unchanged". No-op when the user row is gone.
     Task UpdateNotificationPreferencesAsync(Guid userId, bool? events, bool? announcements, bool? massReminders, bool? feastDays, CancellationToken ct = default);
 

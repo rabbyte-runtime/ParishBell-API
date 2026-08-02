@@ -12,4 +12,7 @@ public class PendingNotification
     // NOTE: The church the referenced entity belongs to, resolved at read time. Travels in the push
     //       payload so a tapped notification can open that church directly.
     public Guid? LocationId { get; set; }
+
+    // NOTE: The day the notification is about, for recurring kinds. Travels in the push so a tap can open that date.
+    public DateOnly? OccurrenceDate { get; set; }
 }

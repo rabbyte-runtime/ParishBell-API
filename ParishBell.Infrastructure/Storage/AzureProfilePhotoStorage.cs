@@ -76,6 +76,33 @@ public class AzureProfilePhotoStorage(BlobServiceClient blobServiceClient, IOpti
     // NOTE:  serve bytes we produced ourselves - EXIF and anything hidden behind an image extension do not survive.
     private async Task<Stream> NormaliseAsync(Stream content, CancellationToken ct)
     {
+        // IMPORTANT: Identify reads only the header, so the pixel count is known before anything is allocated. Decoding
+        // IMPORTANT:  first would defeat the point - the whole risk is an image whose compressed size hides its real one.
+        // NOTE: The header read has to be rewound before the decode, and an unbuffered upload stream may not seek.
+        if (!content.CanSeek)
+        {
+            var buffered = new MemoryStream();
+            await content.CopyToAsync(buffered, ct);
+            buffered.Position = 0;
+            content = buffered;
+        }
+
+        ImageInfo info;
+
+        try
+        {
+            info = await Image.IdentifyAsync(content, ct);
+        }
+        catch (Exception ex) when (ex is UnknownImageFormatException or InvalidImageContentException)
+        {
+            throw new BadRequestException(MessageCodes.ValidationPhotoInvalidType);
+        }
+
+        if ((long)info.Width * info.Height > _settings.MaxUploadPixels)
+            throw new BadRequestException(MessageCodes.ValidationPhotoTooLarge);
+
+        content.Position = 0;
+
         Image image;
 
         try

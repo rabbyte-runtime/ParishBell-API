@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using ParishBell.Core.Constants;
 using ParishBell.Core.DTOs.Common;
 using ParishBell.Core.DTOs.User;
@@ -14,11 +15,13 @@ public class UserService(
     IAuthRepository authRepository,
     IPasswordHasher passwordHasher,
     IProfilePhotoStorage photoStorage,
+    ILogger<UserService> logger,
     IEnumerable<IExternalAuthValidator> externalAuthValidators) : IUserService
 {
     private readonly IUserRepository _userRepository = userRepository;
     private readonly ILanguageRepository _languageRepository = languageRepository;
     private readonly IProfilePhotoStorage _photoStorage = photoStorage;
+    private readonly ILogger<UserService> _logger = logger;
 
     // NOTE: Deletion re-checks the sign-up credential, so it needs the auth-side pieces too.
     private readonly IAuthRepository _authRepository = authRepository;
@@ -136,6 +139,23 @@ public class UserService(
         }
 
         await _userRepository.DeleteAccountAsync(userId, ct);
+
+        // IMPORTANT: The blob lives outside the database, so the transactional delete above cannot reach it - without
+        // IMPORTANT:  this the photo of a deleted account survives in the container indefinitely.
+        // NOTE: Deliberately after the row delete and deliberately swallowed: the account is already gone, so failing
+        //       the request here would tell the user deletion failed when it did not. A leftover blob is recoverable; a
+        //       confusing "your deletion failed" is not.
+        if (user.ProfilePhotoBlob is not null)
+        {
+            try
+            {
+                await _photoStorage.DeleteAsync(user.ProfilePhotoBlob, ct);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Deleted account {UserId} left its profile photo blob {BlobName} behind.", userId, user.ProfilePhotoBlob);
+            }
+        }
     }
 
     // NOTE: Email accounts confirm with their current password.

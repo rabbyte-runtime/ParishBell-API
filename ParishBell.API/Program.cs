@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using System.Text;
 using System.Threading.RateLimiting;
 using Azure.Identity;
@@ -78,6 +79,17 @@ builder.Services.AddScoped<IAnnouncementNotificationRepository, AnnouncementNoti
 builder.Services.AddScoped<IAnnouncementNotificationService, AnnouncementNotificationService>();
 builder.Services.AddHostedService<AnnouncementPushJob>();
 
+// NOTE: Mass reminder fan-out — the same outbox pattern, keyed by (user, schedule, occurrence_date) so a weekly
+//       reminder fires once per week rather than once per poll.
+// IMPORTANT: LocalUtcOffsetMinutes must match the churches' wall clock (330 = Sri Lanka). mass_time carries no
+//            timezone, so a wrong offset here sends every reminder at the wrong hour.
+var massReminderPushSettings = builder.Configuration.GetSection("MassReminderPush").Get<MassReminderPushSettings>()
+    ?? new MassReminderPushSettings();
+builder.Services.AddSingleton(massReminderPushSettings);
+builder.Services.AddScoped<IMassReminderNotificationRepository, MassReminderNotificationRepository>();
+builder.Services.AddScoped<IMassReminderNotificationService, MassReminderNotificationService>();
+builder.Services.AddHostedService<MassReminderPushJob>();
+
 // NOTE: Add hosted services
 builder.Services.AddHostedService<MessageCacheStartupService>();
 builder.Services.AddHostedService<MessageCacheRefreshJob>();
@@ -150,6 +162,22 @@ builder.Services.AddRateLimiter(options =>
             {
                 PermitLimit = 10,
                 Window = TimeSpan.FromMinutes(1),
+                QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                QueueLimit = 0,
+            }));
+
+    // NOTE: Photo uploads are the only large writes a user can make, and each one costs a decode plus a blob write.
+    // IMPORTANT: Partitioned by user rather than IP - a shared connection (parish wifi, mobile CGNAT) would otherwise
+    // IMPORTANT:  let one person's uploads exhaust everyone else's allowance.
+    options.AddPolicy("upload", context =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: context.User.FindFirst(ClaimTypes.NameIdentifier)?.Value
+                       ?? context.Connection.RemoteIpAddress?.ToString()
+                       ?? "unknown",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 10,
+                Window = TimeSpan.FromMinutes(5),
                 QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
                 QueueLimit = 0,
             }));

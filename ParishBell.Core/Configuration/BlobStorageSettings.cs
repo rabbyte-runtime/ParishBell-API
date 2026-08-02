@@ -17,4 +17,8 @@ public class BlobStorageSettings
 
     // NOTE: Ceiling on what a client may upload, before re-encoding shrinks it.
     public int MaxUploadBytes { get; set; } = 12 * 1024 * 1024;
+
+    // IMPORTANT: A decompression guard, not a quality one. Compressed size says nothing about decoded size - a few
+    // IMPORTANT:  hundred KB of PNG can expand to gigabytes of pixels, so dimensions are checked before any decode.
+    public int MaxUploadPixels { get; set; } = 50_000_000;
 }

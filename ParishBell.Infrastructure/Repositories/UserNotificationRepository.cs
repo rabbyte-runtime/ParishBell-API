@@ -41,6 +41,7 @@ public class UserNotificationRepository(ParishBellDbContext dbContext) : IUserNo
                 SentAt = n.SentAt!.Value,
                 IsRead = n.IsRead,
                 ReferenceId = n.ReferenceId,
+                OccurrenceDate = n.OccurrenceDate,
 
                 // NOTE: reference_id is polymorphic, so the owning church is looked up in whichever table the type points at.
                 LocationId =

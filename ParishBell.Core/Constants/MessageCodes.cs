@@ -69,6 +69,9 @@ public static class MessageCodes
     public const string EventNotFound = "PB-79";
     public const string MassRemindersRetrieved = "PB-80";
     public const string MassScheduleInvalidRange = "PB-86";
+
+    // NOTE: A push body template rather than an API response - "{0}" is the mass label, "{1}" the minutes before it starts.
+    public const string MassReminderPushBody = "PB-87";
     public const string UserProfilePhotoUpdated = "PB-81";
     public const string UserProfilePhotoRemoved = "PB-82";
 

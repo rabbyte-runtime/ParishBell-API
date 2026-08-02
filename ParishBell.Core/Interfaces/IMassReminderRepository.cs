@@ -15,6 +15,10 @@ public interface IMassReminderRepository
     // NOTE: Re-saving switches a previously switched-off reminder back on.
     Task<MassReminderResult> UpsertAsync(Guid userId, Guid scheduleId, int minutesBefore, CancellationToken ct = default);
 
+    // NOTE: Switches off every reminder the user holds on masses at one church. Returns how many were still on.
+    // NOTE: Used when they unfollow it - a push from a church they walked away from is the surprise this prevents.
+    Task<int> DisableForLocationAsync(Guid userId, Guid locationId, CancellationToken ct = default);
+
     // NOTE: Switches the reminder off so it stops firing. False when it does not exist or belongs to someone else.
     // NOTE: Idempotent - cancelling an already-off reminder still matches, since the row is what is being addressed.
     Task<bool> DisableAsync(Guid userId, Guid reminderId, CancellationToken ct = default);

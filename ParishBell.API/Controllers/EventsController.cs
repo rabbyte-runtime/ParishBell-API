@@ -9,7 +9,7 @@ namespace ParishBell.API.Controllers;
 [ApiController]
 [Route("api/v1/events")]
 [Authorize]
-public class EventsController(IEventService eventService, IMessageCache messages) : ControllerBase
+public class EventsController(IEventService eventService, IMessageCache messages, ILogger<EventsController> logger) : ApiControllerBase(logger)
 {
     private readonly IEventService _eventService = eventService;
     private readonly IMessageCache _messages = messages;
@@ -19,14 +19,15 @@ public class EventsController(IEventService eventService, IMessageCache messages
     // NOTE: The entry point for deep links: a push carrying eventId, and parishbell://events/{eventId}. Everything the detail screen needs, including the hosting church.
     // NOTE: 404 when the event is unpublished, soft-deleted, or its church is no longer visible - a link outliving its event is expected, not exceptional.
     [HttpGet("{eventId:guid}")]
-    public async Task<IActionResult> GetEvent(
+    public Task<IActionResult> GetEvent(
         Guid eventId,
         [FromHeader(Name = "Accept-Language")] string? acceptLanguage,
-        CancellationToken ct)
-    {
-        var languageCode = string.IsNullOrWhiteSpace(acceptLanguage) ? "en" : acceptLanguage.Trim();
-        var result = await _eventService.GetEventByIdAsync(eventId, languageCode, ct);
-        var response = ApiResponseBuilder.Build(HttpContext, _messages, StatusCodes.Status200OK, MessageCodes.EventDetailRetrieved, result);
-        return StatusCode(response.Status, response);
-    }
+        CancellationToken ct) =>
+        ExecuteAsync(nameof(GetEvent), async () =>
+        {
+            var languageCode = string.IsNullOrWhiteSpace(acceptLanguage) ? "en" : acceptLanguage.Trim();
+            var result = await _eventService.GetEventByIdAsync(eventId, languageCode, ct);
+            var response = ApiResponseBuilder.Build(HttpContext, _messages, StatusCodes.Status200OK, MessageCodes.EventDetailRetrieved, result);
+            return StatusCode(response.Status, response);
+        }, eventId);
 }

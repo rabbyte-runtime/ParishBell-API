@@ -19,8 +19,11 @@ public record NotificationResult
     // NOTE: Feast days only - the liturgical_calendar entry behind the location_feast_days row.
     public Guid? CalendarId { get; init; }
 
-    // NOTE: Mass reminders only - the weekly slot the reminder fired for. notifications_log stores no date, so the
-    //       occurrence is reconstructed from these plus SentAt.
+    // NOTE: The day the row is about, as recorded when it was queued. Authoritative when present.
+    public DateOnly? OccurrenceDate { get; init; }
+
+    // NOTE: Mass reminders only - the weekly slot the reminder fired for. Used to reconstruct the date for rows
+    //       written before occurrence_date existed, or by anything that does not set it.
     public int? MassDayOfWeek { get; init; }
     public TimeOnly? MassTime { get; init; }
 

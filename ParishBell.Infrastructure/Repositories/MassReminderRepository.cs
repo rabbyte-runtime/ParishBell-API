@@ -163,6 +163,15 @@ public class MassReminderRepository(ParishBellDbContext dbContext) : IMassRemind
         return new MassReminderResult(reminder.ReminderId, reminder.MinutesBefore, reminder.IsActive);
     }
 
+    public async Task<int> DisableForLocationAsync(Guid userId, Guid locationId, CancellationToken ct = default)
+    {
+        // NOTE: Cancelled rather than deleted, matching DELETE - re-following and re-enabling keeps the original timing.
+        // NOTE: Restricted to still-active rows so an unfollow of a church with nothing set costs no writes.
+        return await _dbContext.UserMassReminders
+            .Where(r => r.UserId == userId && r.IsActive && r.Schedule.LocationId == locationId)
+            .ExecuteUpdateAsync(s => s.SetProperty(r => r.IsActive, false), ct);
+    }
+
     public async Task<bool> DisableAsync(Guid userId, Guid reminderId, CancellationToken ct = default)
     {
         // NOTE: Scoped to the owner so a caller cannot switch off another user's reminder. Re-cancelling an off one still matches.

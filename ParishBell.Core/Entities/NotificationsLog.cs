@@ -43,6 +43,14 @@ public partial class NotificationsLog
     /// <summary>
     /// FALSE if push delivery failed. Retry logic queries is_sent=FALSE.
     /// </summary>
+    /// <summary>
+    /// The day the notification is about, for entries that recur: the mass date for a reminder, the feast date for a
+    /// feast day. NULL for events and announcements, which are reached through their own id instead. Together with
+    /// user_id and reference_id this is what stops a weekly reminder being sent twice for the same occurrence.
+    /// </summary>
+    [Column("occurrence_date")]
+    public DateOnly? OccurrenceDate { get; set; }
+
     [Column("is_sent")]
     public bool IsSent { get; set; }
 

@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using ParishBell.Application.Services;
 using ParishBell.Core.Constants;
@@ -48,6 +49,7 @@ public class UserServiceTests
             _mockAuthRepo.Object,
             _mockHasher.Object,
             _mockPhotoStorage.Object,
+            NullLogger<UserService>.Instance,
             [_mockGoogleValidator.Object]);
     }
 

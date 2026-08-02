@@ -82,8 +82,9 @@ public class UserNotificationService(IUserNotificationRepository notificationRep
         };
     }
 
-    // NOTE: notifications_log has no date column, so the day a row is about is reconstructed from what sent it.
-    private static DateOnly? ResolveDate(NotificationType type, NotificationResult result) => type switch
+    // NOTE: The queueing job records the day it notified about, so that is used when present.
+    // NOTE: The reconstruction below is the fallback for rows written before occurrence_date existed.
+    private static DateOnly? ResolveDate(NotificationType type, NotificationResult result) => result.OccurrenceDate ?? type switch
     {
         NotificationType.MassReminder => ResolveMassDate(result),
         NotificationType.FeastDay => ResolveFeastDate(result),

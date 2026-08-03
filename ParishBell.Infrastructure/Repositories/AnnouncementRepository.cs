@@ -10,6 +10,65 @@ public class AnnouncementRepository(ParishBellDbContext dbContext) : IAnnounceme
     private readonly ParishBellDbContext _dbContext = dbContext;
     private const string DefaultLanguageCode = "en";
 
+    public async Task<AnnouncementResult?> GetAnnouncementAsync(Guid announcementId, string languageCode, DateTime nowUtc, CancellationToken ct = default)
+    {
+        // NOTE: Resolve the requested language + English to their UUIDs
+        var langs = await _dbContext.Languages
+            .AsNoTracking()
+            .Where(l => l.LanguageCode == languageCode || l.LanguageCode == DefaultLanguageCode)
+            .Select(l => new { l.LanguageId, l.LanguageCode })
+            .ToListAsync(ct);
+
+        var englishId = langs.FirstOrDefault(l => l.LanguageCode == DefaultLanguageCode)?.LanguageId;
+        var requestedId = langs.FirstOrDefault(l => l.LanguageCode == languageCode)?.LanguageId ?? englishId;
+
+        // IMPORTANT: Same visibility rules as the list - an expired or deactivated post must not become reachable
+        // IMPORTANT:  just because the client kept its id from an earlier load.
+        var announcement = await _dbContext.Announcements
+            .AsNoTracking()
+            .Where(a => a.AnnouncementId == announcementId && a.IsActive && a.ExpiresAt > nowUtc)
+            .Select(a => new
+            {
+                a.AnnouncementId,
+                a.LocationId,
+                a.MediaType,
+                a.MediaUrl,
+                a.ThumbnailUrl,
+                a.DurationSeconds,
+                a.CreatedAt,
+                a.ExpiresAt
+            })
+            .FirstOrDefaultAsync(ct);
+
+        if (announcement is null)
+            return null;
+
+        var translations = await _dbContext.AnnouncementTranslations
+            .AsNoTracking()
+            .Where(t => t.AnnouncementId == announcementId && (t.LanguageId == requestedId || t.LanguageId == englishId))
+            .Select(t => new { t.LanguageId, t.Title, t.Description })
+            .ToListAsync(ct);
+
+        var title = translations.FirstOrDefault(t => t.LanguageId == requestedId)?.Title
+                 ?? translations.FirstOrDefault(t => t.LanguageId == englishId)?.Title
+                 ?? string.Empty;
+
+        var description = translations.FirstOrDefault(t => t.LanguageId == requestedId)?.Description
+                       ?? translations.FirstOrDefault(t => t.LanguageId == englishId)?.Description;
+
+        return new AnnouncementResult(
+            announcement.AnnouncementId,
+            announcement.LocationId,
+            announcement.MediaType,
+            announcement.MediaUrl,
+            announcement.ThumbnailUrl,
+            announcement.DurationSeconds,
+            title,
+            description,
+            announcement.CreatedAt,
+            announcement.ExpiresAt);
+    }
+
     public async Task<List<AnnouncementResult>> GetLocationAnnouncementsAsync(
         Guid locationId,
         string languageCode,

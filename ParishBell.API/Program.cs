@@ -63,6 +63,7 @@ builder.Services.AddSingleton(sp =>
     var settings = sp.GetRequiredService<IOptions<BlobStorageSettings>>().Value;
     return new BlobServiceClient(new Uri(settings.AccountUrl), new DefaultAzureCredential());
 });
+builder.Services.AddSingleton<IBlobUrlSigner, AzureBlobUrlSigner>();
 builder.Services.AddSingleton<IProfilePhotoStorage, AzureProfilePhotoStorage>();
 
 // NOTE: Firebase Cloud Messaging (push notifications) — credentials come from user-secrets
@@ -89,6 +90,15 @@ builder.Services.AddSingleton(massReminderPushSettings);
 builder.Services.AddScoped<IMassReminderNotificationRepository, MassReminderNotificationRepository>();
 builder.Services.AddScoped<IMassReminderNotificationService, MassReminderNotificationService>();
 builder.Services.AddHostedService<MassReminderPushJob>();
+
+// NOTE: Feast day fan-out — one push per follower on the morning of a feast their church has pinned.
+// NOTE: Keyed by (user, location_feast_day, occurrence_date), so an annually recurring feast is notified once a year.
+var feastDayPushSettings = builder.Configuration.GetSection("FeastDayPush").Get<FeastDayPushSettings>()
+    ?? new FeastDayPushSettings();
+builder.Services.AddSingleton(feastDayPushSettings);
+builder.Services.AddScoped<IFeastDayNotificationRepository, FeastDayNotificationRepository>();
+builder.Services.AddScoped<IFeastDayNotificationService, FeastDayNotificationService>();
+builder.Services.AddHostedService<FeastDayPushJob>();
 
 // NOTE: Add hosted services
 builder.Services.AddHostedService<MessageCacheStartupService>();

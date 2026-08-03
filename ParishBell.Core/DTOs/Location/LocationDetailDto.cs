@@ -25,6 +25,9 @@ public class LocationDetailDto
     public string MassTo { get; set; } = default!;
     public List<LocationFeastDayDto> FeastDays { get; set; } = [];
 
+    // NOTE: "#RRGGBB" for this church's map pin, carried from its type.
+    public string? PinColorHex { get; set; }
+
     // NOTE: Whether the caller follows this church, so the detail sheet renders Join/Leave without a second call.
     // IMPORTANT: This endpoint is public - an anonymous caller always gets false, which is not the same as "unknown".
     public bool IsFollowing { get; set; }

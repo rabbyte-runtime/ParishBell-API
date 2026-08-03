@@ -18,7 +18,10 @@ public record LocationDetailResult(
     List<FeastDayResult> FeastDays,
 
     // NOTE: Always false for an anonymous caller - the endpoint is public, so "not following" and "nobody asked" look the same.
-    bool IsFollowing
+    bool IsFollowing,
+
+    // NOTE: The map pin colour of this church's type, carried through so the detail sheet matches the pin the user tapped.
+    string? PinColorHex
 );
 
 public record LocationImageResult(Guid ImageId, string ImageUrl, bool IsPrimary, int SortOrder);

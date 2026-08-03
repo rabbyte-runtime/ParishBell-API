@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Moq;
 using ParishBell.Application.Services;
@@ -53,7 +54,8 @@ public class AuthServiceTests
             Mock.Of<IMessageCache>(),
             [_mockGoogleValidator.Object],
             _mockDeviceRepo.Object,
-            _mockUserRepo.Object
+            _mockUserRepo.Object,
+            NullLogger<AuthService>.Instance
         );
 
         // NOTE: Set up default JWT mocks

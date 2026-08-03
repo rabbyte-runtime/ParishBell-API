@@ -1,7 +1,5 @@
-using Azure;
 using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Models;
-using Azure.Storage.Sas;
 using Microsoft.Extensions.Options;
 using ParishBell.Core.Configuration;
 using ParishBell.Core.Constants;
@@ -13,20 +11,17 @@ using SixLabors.ImageSharp.Processing;
 
 namespace ParishBell.Infrastructure.Storage;
 
-public class AzureProfilePhotoStorage(BlobServiceClient blobServiceClient, IOptions<BlobStorageSettings> options) : IProfilePhotoStorage
+public class AzureProfilePhotoStorage(
+    BlobServiceClient blobServiceClient,
+    IBlobUrlSigner urlSigner,
+    IOptions<BlobStorageSettings> options) : IProfilePhotoStorage
 {
     private readonly BlobServiceClient _blobServiceClient = blobServiceClient;
+
+    // NOTE: SAS minting and its delegation-key cache live in one place, shared with announcement media.
+    private readonly IBlobUrlSigner _urlSigner = urlSigner;
+
     private readonly BlobStorageSettings _settings = options.Value;
-
-    // IMPORTANT: With a managed identity there is no account key, so a service SAS is impossible - every read URL is a
-    // IMPORTANT:  user delegation SAS. The delegation key is an Entra round trip, so it is cached rather than fetched per photo.
-    private UserDelegationKey? _delegationKey;
-    private DateTimeOffset _delegationKeyExpiresOn;
-    private readonly SemaphoreSlim _delegationKeyLock = new(1, 1);
-
-    // NOTE: Renewed well before it lapses, so a request never races the expiry of a key it just took.
-    private static readonly TimeSpan DelegationKeyLifetime = TimeSpan.FromHours(6);
-    private static readonly TimeSpan DelegationKeyRenewMargin = TimeSpan.FromMinutes(30);
 
     public async Task<string> UploadAsync(Guid userId, Stream content, CancellationToken ct = default)
     {
@@ -50,27 +45,8 @@ public class AzureProfilePhotoStorage(BlobServiceClient blobServiceClient, IOpti
         await ContainerClient().GetBlobClient(blobName).DeleteIfExistsAsync(cancellationToken: ct);
     }
 
-    public async Task<string> GetReadUrlAsync(string blobName, CancellationToken ct = default)
-    {
-        var blobClient = ContainerClient().GetBlobClient(blobName);
-        var key = await GetDelegationKeyAsync(ct);
-
-        var sasBuilder = new BlobSasBuilder
-        {
-            BlobContainerName = _settings.ProfilePhotosContainer,
-            BlobName = blobName,
-            Resource = "b",
-
-            // NOTE: Backdated a little so a client whose clock runs slow does not reject a URL that is already valid.
-            StartsOn = DateTimeOffset.UtcNow.AddMinutes(-5),
-            ExpiresOn = DateTimeOffset.UtcNow.AddMinutes(_settings.SasMinutes)
-        };
-
-        sasBuilder.SetPermissions(BlobSasPermissions.Read);
-
-        var sas = sasBuilder.ToSasQueryParameters(key, _blobServiceClient.AccountName);
-        return $"{blobClient.Uri}?{sas}";
-    }
+    public Task<string> GetReadUrlAsync(string blobName, CancellationToken ct = default) =>
+        _urlSigner.SignAsync(_settings.ProfilePhotosContainer, blobName, ct);
 
     // NOTE: Crops to a centred square and re-encodes as JPEG. Besides the size win, decoding and re-encoding means we
     // NOTE:  serve bytes we produced ourselves - EXIF and anything hidden behind an image extension do not survive.
@@ -139,31 +115,4 @@ public class AzureProfilePhotoStorage(BlobServiceClient blobServiceClient, IOpti
 
     // NOTE: Deterministic, so an upload overwrites the previous photo and a delete needs nothing but the user id.
     private static string BlobNameFor(Guid userId) => $"{userId}.jpg";
-
-    private async Task<UserDelegationKey> GetDelegationKeyAsync(CancellationToken ct)
-    {
-        if (_delegationKey is not null && DateTimeOffset.UtcNow < _delegationKeyExpiresOn - DelegationKeyRenewMargin)
-            return _delegationKey;
-
-        await _delegationKeyLock.WaitAsync(ct);
-        try
-        {
-            // NOTE: Re-checked inside the lock - whoever was ahead of us has already renewed it.
-            if (_delegationKey is not null && DateTimeOffset.UtcNow < _delegationKeyExpiresOn - DelegationKeyRenewMargin)
-                return _delegationKey;
-
-            var expiresOn = DateTimeOffset.UtcNow.Add(DelegationKeyLifetime);
-
-            Response<UserDelegationKey> response = await _blobServiceClient.GetUserDelegationKeyAsync(
-                DateTimeOffset.UtcNow.AddMinutes(-5), expiresOn, ct);
-
-            _delegationKey = response.Value;
-            _delegationKeyExpiresOn = expiresOn;
-            return _delegationKey;
-        }
-        finally
-        {
-            _delegationKeyLock.Release();
-        }
-    }
 }

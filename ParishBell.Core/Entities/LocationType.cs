@@ -22,6 +22,14 @@ public partial class LocationType
     [Column("sort_order")]
     public int SortOrder { get; set; }
 
+    /// <summary>
+    /// Map pin colour as "#RRGGBB". Stored rather than derived from position so reordering or inserting a type cannot
+    /// reshuffle every pin after it, and so all three clients render the same colour for the same type.
+    /// </summary>
+    [Column("pin_color_hex")]
+    [StringLength(7)]
+    public string? PinColorHex { get; set; }
+
     [Column("is_active")]
     public bool IsActive { get; set; }
 

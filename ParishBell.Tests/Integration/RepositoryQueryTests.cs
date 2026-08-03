@@ -29,8 +29,8 @@ public class RepositoryQueryTests(PostgresFixture fixture) : IAsyncLifetime
         // NOTE: Cleared first so a rerun against the same container starts from the same state.
         await db.Database.ExecuteSqlRawAsync("""
             TRUNCATE notifications_log, user_mass_reminders, user_followed_locations, mass_schedule_translations,
-                     mass_schedules, location_feast_days, liturgical_calendar, location_translations, locations,
-                     location_types, app_users, languages RESTART IDENTITY CASCADE;
+                     mass_schedules, location_feast_days, liturgical_calendar, announcements, admin_users,
+                     location_translations, locations, location_types, app_users, languages RESTART IDENTITY CASCADE;
             """);
 
         db.Languages.Add(new Language
@@ -47,6 +47,7 @@ public class RepositoryQueryTests(PostgresFixture fixture) : IAsyncLifetime
             LocationTypeId = _locationTypeId,
             LocationTypeCode = "SHRINE",
             SortOrder = 1,
+            PinColorHex = "#B23A48",
             IsActive = true,
             CreatedAt = DateTime.UtcNow
         });
@@ -369,7 +370,126 @@ public class RepositoryQueryTests(PostgresFixture fixture) : IAsyncLifetime
         Assert.Equal(new DateOnly(2026, 8, 16), item.OccurrenceDate);
     }
 
-    // IMPORTANT: TEST 10 - Marking read is a set-based update scoped to the owner
+    // IMPORTANT: TEST 10 - The pin colour is carried from the type through both location payloads
+    [Fact]
+    public async Task LocationRepository_CarriesPinColourFromTheType()
+    {
+        // NOTE: Arrange
+        using var db = _fixture.CreateContext();
+        var repo = new LocationRepository(db);
+
+        // NOTE: Act
+        var detail = await repo.GetLocationByIdAsync(_locationId, "en", new DateOnly(2026, 8, 1), new DateOnly(2026, 8, 7), _userId);
+        var list = await repo.GetActiveLocationsAsync("en", null, null, null, null, null, null, null, null, null, _userId);
+        var followed = await repo.GetFollowedLocationsAsync(_userId, "en", null, null);
+
+        // NOTE: Assert
+        Assert.Equal("#B23A48", detail!.PinColorHex);
+        Assert.Equal("#B23A48", Assert.Single(list).PinColorHex);
+        Assert.Equal("#B23A48", Assert.Single(followed).PinColorHex);
+    }
+
+    // IMPORTANT: TEST 11 - The feast job's candidate query and its anti-join both have to reach SQL
+    [Fact]
+    public async Task FeastDayNotificationRepository_FindsPinnedFeastsAndDedupesRecipients()
+    {
+        // NOTE: Arrange
+        using var db = _fixture.CreateContext();
+        var repo = new FeastDayNotificationRepository(db);
+        var occurrence = new DateOnly(2026, 8, 15);
+
+        // NOTE: Act
+        var feasts = await repo.GetPinnedFeastDaysAsync();
+        var before = await repo.GetRecipientsWithoutLogAsync(_feastDayId, _locationId, occurrence, default);
+
+        db.NotificationsLogs.Add(new NotificationsLog
+        {
+            NotificationId = Guid.NewGuid(),
+            UserId = _userId,
+            Type = (short)NotificationType.FeastDay,
+            ReferenceId = _feastDayId,
+            OccurrenceDate = occurrence,
+            Title = "The Assumption",
+            Body = "Holy Day of Obligation",
+            IsSent = false,
+            IsRead = false
+        });
+        await db.SaveChangesAsync();
+
+        var after = await repo.GetRecipientsWithoutLogAsync(_feastDayId, _locationId, occurrence, default);
+
+        // NOTE: Assert
+        var feast = Assert.Single(feasts);
+        Assert.Equal(_calendarId, feast.CalendarId);
+        Assert.True(feast.IsRecurringAnnually);
+        Assert.Equal(8, feast.Month);
+
+        Assert.Equal(_userId, Assert.Single(before).UserId);
+        Assert.Empty(after);
+    }
+
+    // IMPORTANT: TEST 12 - Fetching one announcement by id applies the same active/unexpired rules as the list
+    [Fact]
+    public async Task AnnouncementRepository_GetAnnouncement_RespectsExpiry()
+    {
+        // NOTE: Arrange — announcements are authored by an admin, so the FK needs one to point at.
+        using var db = _fixture.CreateContext();
+        var liveId = Guid.NewGuid();
+        var expiredId = Guid.NewGuid();
+        var adminId = Guid.NewGuid();
+        var now = DateTime.UtcNow;
+
+        db.AdminUsers.Add(new AdminUser
+        {
+            AdminId = adminId,
+            FullName = "Parish Admin",
+            Email = "admin@example.com",
+            PasswordHash = "x",
+            Role = 1,
+            IsActive = true,
+            CreatedAt = now
+        });
+
+        db.Announcements.AddRange(
+            new Announcement
+            {
+                AnnouncementId = liveId,
+                LocationId = _locationId,
+                MediaType = 1,
+                MediaUrl = "https://parishbell.blob.core.windows.net/announcements/live.mp3?sv=expired",
+                DurationSeconds = 90,
+                IsActive = true,
+                CreatedAt = now,
+                ExpiresAt = now.AddHours(4),
+                CreatedBy = adminId
+            },
+            new Announcement
+            {
+                AnnouncementId = expiredId,
+                LocationId = _locationId,
+                MediaType = 1,
+                MediaUrl = "https://parishbell.blob.core.windows.net/announcements/old.mp3",
+                DurationSeconds = 30,
+                IsActive = true,
+                CreatedAt = now.AddDays(-2),
+                ExpiresAt = now.AddHours(-1),
+                CreatedBy = adminId
+            });
+        await db.SaveChangesAsync();
+
+        var repo = new AnnouncementRepository(db);
+
+        // NOTE: Act
+        var live = await repo.GetAnnouncementAsync(liveId, "en", now);
+        var expired = await repo.GetAnnouncementAsync(expiredId, "en", now);
+
+        // NOTE: Assert
+        Assert.NotNull(live);
+        Assert.Equal(_locationId, live.LocationId);
+        Assert.Null(expired);
+    }
+
+    // IMPORTANT: TEST 13 - Marking read is a set-based update scoped to the owner
     [Fact]
     public async Task UserNotificationRepository_MarkAllRead_ClearsOnlyThisUser()
     {

@@ -11,6 +11,7 @@ public class AnnouncementServiceTests
 {
     private readonly Mock<IAnnouncementRepository> _mockRepo;
     private readonly Mock<ILocationFollowRepository> _mockFollowRepo;
+    private readonly Mock<IBlobUrlSigner> _mockUrlSigner;
     private readonly AnnouncementService _service;
 
     private readonly Guid _userId = Guid.NewGuid();
@@ -20,7 +21,14 @@ public class AnnouncementServiceTests
     {
         _mockRepo = new Mock<IAnnouncementRepository>();
         _mockFollowRepo = new Mock<ILocationFollowRepository>();
-        _service = new AnnouncementService(_mockRepo.Object, _mockFollowRepo.Object);
+
+        // NOTE: Re-signing is exercised in its own tests; here it hands the URL straight back so assertions stay readable.
+        _mockUrlSigner = new Mock<IBlobUrlSigner>();
+        _mockUrlSigner
+            .Setup(s => s.ResignAsync(It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((string? url, CancellationToken _) => url);
+
+        _service = new AnnouncementService(_mockRepo.Object, _mockFollowRepo.Object, _mockUrlSigner.Object);
     }
 
     // NOTE: The caller follows the location unless a test says otherwise.

@@ -72,6 +72,11 @@ public static class MessageCodes
 
     // NOTE: A push body template rather than an API response - "{0}" is the mass label, "{1}" the minutes before it starts.
     public const string MassReminderPushBody = "PB-87";
+
+    // NOTE: The feast day push title, used when the calendar entry has no translation at all. "{0}" is the church name.
+    public const string FeastDayPushFallbackTitle = "PB-88";
+    public const string AnnouncementRetrieved = "PB-89";
+    public const string AnnouncementNotFound = "PB-90";
     public const string UserProfilePhotoUpdated = "PB-81";
     public const string UserProfilePhotoRemoved = "PB-82";
 

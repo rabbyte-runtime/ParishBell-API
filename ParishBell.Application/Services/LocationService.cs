@@ -43,7 +43,8 @@ public class LocationService(ILocationRepository locationRepository) : ILocation
             DistanceKm = withDistance
                 ? Math.Round(Haversine(userLat!.Value, userLng!.Value, r.Latitude, r.Longitude), 2)
                 : null,
-            IsFollowing = r.IsFollowing
+            IsFollowing = r.IsFollowing,
+            PinColorHex = r.PinColorHex
         }).ToList();
 
         return new LocationPageDto
@@ -95,7 +96,8 @@ public class LocationService(ILocationRepository locationRepository) : ILocation
                 Day = f.Day,
                 SpecificDate = f.SpecificDate?.ToString("yyyy-MM-dd")
             })],
-            IsFollowing = result.IsFollowing
+            IsFollowing = result.IsFollowing,
+            PinColorHex = result.PinColorHex
         };
     }
 
@@ -127,7 +129,8 @@ public class LocationService(ILocationRepository locationRepository) : ILocation
             Website = r.Website,
             // NOTE: No distance — the followed list isn't location-relative.
             DistanceKm = null,
-            IsFollowing = r.IsFollowing
+            IsFollowing = r.IsFollowing,
+            PinColorHex = r.PinColorHex
         }).ToList();
 
         return new LocationPageDto

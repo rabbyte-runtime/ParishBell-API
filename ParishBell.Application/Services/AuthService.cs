@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using ParishBell.Core.Configuration;
 using ParishBell.Core.Constants;
@@ -20,8 +21,11 @@ public partial class AuthService(
     IMessageCache messageCache,
     IEnumerable<IExternalAuthValidator> externalAuthValidators,
     IUserDeviceRepository userDeviceRepository,
-    IUserRepository userRepository) : IAuthService
+    IUserRepository userRepository,
+    ILogger<AuthService> logger) : IAuthService
 {
+    private readonly ILogger<AuthService> _logger = logger;
+
     // NOTE: Dependencies for authentication
     private readonly IAuthRepository _authRepository = authRepository;
     private readonly IPasswordHasher _passwordHasher = passwordHasher;
@@ -335,7 +339,14 @@ public partial class AuthService(
 
         // IMPORTANT: Don't reveal whether token exists
         // NOTE: If token is invalid or already revoked, just return success silently
-        if (storedToken is null || storedToken.IsRevoked) return;
+        if (storedToken is null || storedToken.IsRevoked)
+        {
+            // IMPORTANT: Silent to the caller, but not silent in the logs. A client that signs out with a stale token -
+            // IMPORTANT:  one already rotated by a refresh - gets a 200 while its live session keeps running for 30 days.
+            // IMPORTANT:  Without this line that bug is invisible from both ends.
+            _logger.LogWarning("Logout presented a refresh token that is unknown or already revoked; no session was ended.");
+            return;
+        }
 
         // NOTE: Revoke this single refresh token
         await _authRepository.RevokeRefreshTokenAsync(storedToken.RefreshTokenId, ct);

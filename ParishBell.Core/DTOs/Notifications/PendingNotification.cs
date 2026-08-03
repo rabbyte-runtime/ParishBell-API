@@ -13,6 +13,9 @@ public class PendingNotification
     //       payload so a tapped notification can open that church directly.
     public Guid? LocationId { get; set; }
 
+    // NOTE: Feast days only - the liturgical entry behind the pinned row, so a tap can open the calendar entry itself.
+    public Guid? CalendarId { get; set; }
+
     // NOTE: The day the notification is about, for recurring kinds. Travels in the push so a tap can open that date.
     public DateOnly? OccurrenceDate { get; set; }
 }

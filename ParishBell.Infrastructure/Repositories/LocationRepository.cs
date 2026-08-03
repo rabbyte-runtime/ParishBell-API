@@ -76,7 +76,10 @@ public class LocationRepository(ParishBellDbContext dbContext) : ILocationReposi
                 l.Longitude,
                 l.Phone,
                 l.Email,
-                l.Website
+                l.Website,
+
+                // NOTE: Carried from the type so the map does not need a second call to colour its pins.
+                l.LocationType.PinColorHex
             })
             .ToListAsync(ct);
 
@@ -119,7 +122,8 @@ public class LocationRepository(ParishBellDbContext dbContext) : ILocationReposi
                 loc.Phone,
                 loc.Email,
                 loc.Website,
-                followedIds.Contains(loc.LocationId)
+                followedIds.Contains(loc.LocationId),
+                loc.PinColorHex
             ));
         }
 
@@ -155,7 +159,8 @@ public class LocationRepository(ParishBellDbContext dbContext) : ILocationReposi
                 f.Location.Longitude,
                 f.Location.Phone,
                 f.Location.Email,
-                f.Location.Website
+                f.Location.Website,
+                f.Location.LocationType.PinColorHex
             })
             .ToListAsync(ct);
 
@@ -193,7 +198,8 @@ public class LocationRepository(ParishBellDbContext dbContext) : ILocationReposi
                 loc.Website,
 
                 // NOTE: This list *is* the user's follows, so every row is followed by definition.
-                true
+                true,
+                loc.PinColorHex
             ));
         }
 
@@ -215,7 +221,7 @@ public class LocationRepository(ParishBellDbContext dbContext) : ILocationReposi
         var location = await _dbContext.Locations
             .AsNoTracking()
             .Where(l => l.LocationId == locationId && l.IsApproved && l.IsActive && !l.IsRejected)
-            .Select(l => new { l.LocationId, l.LocationTypeId, l.Latitude, l.Longitude, l.Phone, l.Email, l.Website })
+            .Select(l => new { l.LocationId, l.LocationTypeId, l.Latitude, l.Longitude, l.Phone, l.Email, l.Website, l.LocationType.PinColorHex })
             .FirstOrDefaultAsync(ct);
 
         if (location is null) return null;
@@ -345,7 +351,8 @@ public class LocationRepository(ParishBellDbContext dbContext) : ILocationReposi
             images,
             schedules,
             feastDays,
-            isFollowing
+            isFollowing,
+            location.PinColorHex
         );
     }
 }

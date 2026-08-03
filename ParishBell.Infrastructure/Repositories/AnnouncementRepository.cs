@@ -22,8 +22,8 @@ public class AnnouncementRepository(ParishBellDbContext dbContext) : IAnnounceme
         var englishId = langs.FirstOrDefault(l => l.LanguageCode == DefaultLanguageCode)?.LanguageId;
         var requestedId = langs.FirstOrDefault(l => l.LanguageCode == languageCode)?.LanguageId ?? englishId;
 
-        // IMPORTANT: Same visibility rules as the list - an expired or deactivated post must not become reachable
-        // IMPORTANT:  just because the client kept its id from an earlier load.
+        // IMPORTANT: Same visibility rules as the list.
+        // NOTE: An expired post must not become reachable just because the client kept its id.
         var announcement = await _dbContext.Announcements
             .AsNoTracking()
             .Where(a => a.AnnouncementId == announcementId && a.IsActive && a.ExpiresAt > nowUtc)
@@ -88,8 +88,8 @@ public class AnnouncementRepository(ParishBellDbContext dbContext) : IAnnounceme
         var requestedId = langs.FirstOrDefault(l => l.LanguageCode == languageCode)?.LanguageId ?? englishId;
 
         // NOTE: Active, unexpired posts for this location — idx_ann_active covers IsActive + ExpiresAt.
-        // NOTE: Newest-first by CreatedAt so it reads like a chat/WhatsApp channel.
-        //       ThenByDescending AnnouncementId keeps pagination pages stable and non-overlapping.
+        // NOTE: Newest-first by CreatedAt so it reads like a chat channel.
+        // NOTE: ThenByDescending AnnouncementId keeps pages stable and non-overlapping.
         IQueryable<Core.Entities.Announcement> orderedQuery = _dbContext.Announcements
             .AsNoTracking()
             .Where(a => a.LocationId == locationId && a.IsActive && a.ExpiresAt > nowUtc)

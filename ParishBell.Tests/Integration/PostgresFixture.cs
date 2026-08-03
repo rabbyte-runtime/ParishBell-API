@@ -4,11 +4,11 @@ using Testcontainers.PostgreSql;
 
 namespace ParishBell.Tests.Integration;
 
-// IMPORTANT: Everything above the repositories is covered by mocks, which cannot tell whether a LINQ expression
-// IMPORTANT:  actually translates to SQL. These tests exist for exactly that: they run the real queries against a real
-// IMPORTANT:  PostgreSQL, so an untranslatable projection fails here rather than as a 500 in production.
-// NOTE: The schema is created from the EF model rather than the production DDL - close enough to prove translation and
-//       query logic, and it keeps the tests independent of a schema file this repo does not own.
+// IMPORTANT: Mocks cannot tell whether a LINQ expression actually translates to SQL.
+// NOTE: These run the real queries against a real PostgreSQL to prove it does.
+// NOTE: An untranslatable projection fails here rather than as a 500 in production.
+// NOTE: The schema is created from the EF model, not the production DDL.
+// NOTE: That is enough to prove translation and keeps the tests self-contained.
 public class PostgresFixture : IAsyncLifetime
 {
     private readonly PostgreSqlContainer _container = new PostgreSqlBuilder()

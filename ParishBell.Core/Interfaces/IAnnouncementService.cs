@@ -4,8 +4,8 @@ namespace ParishBell.Core.Interfaces;
 
 public interface IAnnouncementService
 {
-    // NOTE: One announcement with a freshly minted media URL, for the moment the user presses play rather than when the list loaded.
-    // NOTE: Same joined-members-only gate as the list. Throws NotFound once the post has expired or been removed.
+    // NOTE: One announcement with a media URL minted now, not at list load.
+    // NOTE: Same members-only gate as the list. NotFound once expired or removed.
     Task<AnnouncementDto> GetAnnouncementAsync(Guid userId, Guid announcementId, string languageCode, CancellationToken ct = default);
 
     Task<AnnouncementPageDto> GetLocationAnnouncementsAsync(

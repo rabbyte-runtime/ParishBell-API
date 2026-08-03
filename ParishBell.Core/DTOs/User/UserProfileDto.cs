@@ -9,10 +9,10 @@ public class UserProfileDto
     public string Email { get; set; } = string.Empty;
     public string? ProfileImageUrl { get; set; }
 
-    // NOTE: Numeric provider value — 1=Email, 2=Google, 3=Apple. Lets the app hide password settings for social users.
+    // NOTE: 1=Email, 2=Google, 3=Apple. Lets the app hide password settings.
     public AuthProvider AuthProvider { get; set; }
 
-    // NOTE: Language id plus its resolved code/names, so the app can render the setting without a second lookup.
+    // NOTE: Language id plus resolved names, so the setting needs no second lookup.
     public Guid PreferredLanguage { get; set; }
     public string PreferredLanguageCode { get; set; } = string.Empty;
     public string PreferredLanguageName { get; set; } = string.Empty;

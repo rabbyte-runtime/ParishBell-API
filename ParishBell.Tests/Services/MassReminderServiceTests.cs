@@ -117,7 +117,7 @@ public class MassReminderServiceTests
         Assert.Equal(["check", "upsert"], callOrder);
     }
 
-    // IMPORTANT: TEST 4 - Re-saving reports the reminder switched back on, which is how the UI re-enables one
+    // IMPORTANT: TEST 4 - Re-saving reports it switched back on, which is how the UI re-enables
     [Fact]
     public async Task SetReminder_OnPreviouslyDisabledReminder_ComesBackActive()
     {
@@ -270,7 +270,7 @@ public class MassReminderServiceTests
         Assert.Equal(MessageCodes.GeneralNotFound, exception.MessageCode);
     }
 
-    // IMPORTANT: TEST 13 - The reminder is always written for the caller, never for whoever the body might name
+    // IMPORTANT: TEST 13 - The reminder is always written for the caller
     [Fact]
     public async Task SetReminder_WritesForTheCallingUser()
     {

@@ -37,8 +37,9 @@ public class MassScheduleRepository(ParishBellDbContext dbContext) : IMassSchedu
         if (followedLocationIds.Count == 0)
             return [];
 
-        // NOTE: Weekly entries always apply. A special is kept only when its window overlaps the requested month -
-        // NOTE:  an open-ended side (null valid_from/valid_to) counts as reaching that far. The service does the day-level intersection.
+        // NOTE: Weekly entries always apply.
+        // NOTE: A special is kept only when its window overlaps the requested month.
+        // NOTE: An open-ended side counts as reaching that far.
         // NOTE: Ordered by day then time, then ScheduleId for a stable order across churches sharing a slot.
         var schedules = await _dbContext.MassSchedules
             .AsNoTracking()
@@ -71,8 +72,8 @@ public class MassScheduleRepository(ParishBellDbContext dbContext) : IMassSchedu
             .Select(t => new { t.LocationId, t.LanguageId, t.Name })
             .ToListAsync(ct);
 
-        // IMPORTANT: Scoped to the caller - a reminder is personal, so another user's row must never reach this list.
-        // NOTE: Switched-off reminders are fetched too; the client needs them to render the toggle in its off state.
+        // IMPORTANT: Scoped to the caller - another user row must never reach this list.
+        // NOTE: Switched-off reminders are fetched too, so the toggle can render off.
         var reminders = await _dbContext.UserMassReminders
             .AsNoTracking()
             .Where(r => r.UserId == userId && scheduleIds.Contains(r.ScheduleId))

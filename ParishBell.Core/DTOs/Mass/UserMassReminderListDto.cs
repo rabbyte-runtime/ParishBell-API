@@ -5,7 +5,7 @@ public class UserMassReminderListDto
     public List<UserMassReminderDto> Items { get; set; } = [];
 }
 
-// NOTE: A weekly agenda row for the "my reminders" screen - the reminder plus the mass it belongs to.
+// NOTE: A weekly agenda row - the reminder plus the mass it belongs to.
 public class UserMassReminderDto
 {
     public Guid ReminderId { get; set; }
@@ -13,10 +13,10 @@ public class UserMassReminderDto
     // NOTE: Push fires at (massTime - minutesBefore).
     public int MinutesBefore { get; set; }
 
-    // NOTE: False when the user cancelled it. The row survives so it can be switched back on by re-saving.
+    // NOTE: False when cancelled. The row survives so re-saving switches it back on.
     public bool IsActive { get; set; }
 
-    // NOTE: The mass this reminder is for - POST /api/v1/mass/reminders takes this to re-time or revive it.
+    // NOTE: The mass this is for - POST /mass/reminders re-times or revives it.
     public Guid ScheduleId { get; set; }
 
     public Guid LocationId { get; set; }
@@ -31,13 +31,15 @@ public class UserMassReminderDto
     // NOTE: e.g. "Sinhala Mass" - already in the requested language, English where untranslated.
     public string Label { get; set; } = default!;
 
-    // NOTE: Seasonal/one-off mass. Its window is exposed rather than applied, since this list has no month to clip against.
+    // NOTE: A seasonal mass. The window is exposed, not applied - there is no month here.
     public bool IsSpecial { get; set; }
 
-    // NOTE: "yyyy-MM-dd". Null on weekly entries. A validTo in the past means the reminder will not fire again.
+    // NOTE: "yyyy-MM-dd", null on weekly entries.
+    // NOTE: A validTo in the past means the reminder will not fire again.
     public string? ValidFrom { get; set; }
     public string? ValidTo { get; set; }
 
-    // NOTE: False when the user has since unfollowed that church. The reminder still fires - this is the only place it surfaces.
+    // NOTE: False when the user has since unfollowed that church.
+    // NOTE: This is the only screen where such a reminder surfaces.
     public bool IsFollowing { get; set; }
 }

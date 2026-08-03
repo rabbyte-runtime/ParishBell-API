@@ -15,9 +15,12 @@ public class EventsController(IEventService eventService, IMessageCache messages
     private readonly IMessageCache _messages = messages;
 
     // NOTE: GET /api/v1/events/{eventId}
-    // IMPORTANT: Requires User JWT - viewing a shared event means signing in first (§5.8). Not scoped to followers, so any signed-in user can open a shared link.
-    // NOTE: The entry point for deep links: a push carrying eventId, and parishbell://events/{eventId}. Everything the detail screen needs, including the hosting church.
-    // NOTE: 404 when the event is unpublished, soft-deleted, or its church is no longer visible - a link outliving its event is expected, not exceptional.
+    // IMPORTANT: Requires User JWT - viewing a shared event means signing in first.
+    // NOTE: Not follower-scoped, so any signed-in user can open a shared link.
+    // NOTE: The entry point for deep links - a push eventId or a parishbell:// share link.
+    // NOTE: Carries everything the detail screen needs, including the hosting church.
+    // NOTE: 404 when unpublished, deleted, or its church is hidden.
+    // NOTE: A link outliving its event is expected, not exceptional.
     [HttpGet("{eventId:guid}")]
     public Task<IActionResult> GetEvent(
         Guid eventId,

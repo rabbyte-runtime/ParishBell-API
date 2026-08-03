@@ -16,9 +16,9 @@ public class AnnouncementsController(IAnnouncementService announcementService, I
 
     // NOTE: GET /api/v1/announcements/{announcementId}
     // IMPORTANT: Requires User JWT and membership of the church's channel - the same gate as the list.
-    // IMPORTANT: Exists so the client can fetch a media URL at the moment it presses play. The URLs are short-lived SAS
-    // IMPORTANT:  tokens, so one taken from a list loaded twenty minutes ago will already have expired mid-session.
-    // NOTE: 404 once the post has expired or been removed, 403 when the caller does not follow that church.
+    // IMPORTANT: Lets the client fetch a media URL at the moment it presses play.
+    // NOTE: URLs are short-lived SAS tokens, so a list loaded minutes ago is already stale.
+    // NOTE: 404 once expired or removed, 403 when the caller does not follow the church.
     [HttpGet("{announcementId:guid}")]
     public Task<IActionResult> GetAnnouncement(
         Guid announcementId,

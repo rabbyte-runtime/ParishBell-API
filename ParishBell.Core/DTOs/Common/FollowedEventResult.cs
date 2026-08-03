@@ -1,6 +1,6 @@
 namespace ParishBell.Core.DTOs.Common;
 
-// NOTE: LocationName, Title and Description are already resolved with English fallback by the repository.
+// NOTE: LocationName, Title and Description already have English fallback applied.
 public record FollowedEventResult(
     Guid EventId,
     Guid LocationId,

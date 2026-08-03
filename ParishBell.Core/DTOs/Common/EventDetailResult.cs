@@ -1,8 +1,8 @@
 namespace ParishBell.Core.DTOs.Common;
 
-// NOTE: One event fetched by id rather than through its location's list, so it carries the church itself -
-// NOTE:  a push or a share link opens this screen cold, with no surrounding context to inherit.
-// NOTE: Title, Description and LocationName are already resolved with English fallback by the repository.
+// NOTE: Fetched by id rather than through a location list, so it carries the church.
+// NOTE: A push or share link opens this screen cold, with no context to inherit.
+// NOTE: Title, Description and LocationName already have English fallback applied.
 public record EventDetailResult(
     Guid EventId,
     Guid LocationId,

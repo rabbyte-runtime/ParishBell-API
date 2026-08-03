@@ -5,6 +5,6 @@ namespace ParishBell.Core.Interfaces;
 
 public interface ILocationTypeService
 {
-    // NOTE: Returns active types ordered by sort order, name resolved to the requested language with English fallback
+    // NOTE: Active types by sort order, name resolved with English fallback.
     Task<List<LocationTypeDto>> GetActiveLocationTypesAsync(string languageCode, CancellationToken ct = default);
 }

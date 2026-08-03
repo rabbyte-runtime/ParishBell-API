@@ -24,8 +24,8 @@ public class MassReminderPushJob(
         }
 
         // NOTE: Floor the interval so a misconfigured value can't hot-loop the job.
-        // IMPORTANT: Polling slower than the lookback window would drop reminders entirely - a fire time that passes
-        // IMPORTANT:  between two polls is only recovered because the window reaches back further than the gap.
+        // IMPORTANT: Polling slower than the lookback window would drop reminders entirely.
+        // NOTE: A fire time between polls survives only because the window reaches back further.
         var interval = TimeSpan.FromSeconds(Math.Max(15, _settings.PollIntervalSeconds));
 
         // NOTE: Let the app finish starting before the first poll.

@@ -3,9 +3,9 @@ using ParishBell.Core.DTOs.Mass;
 
 namespace ParishBell.Application.Services;
 
-// NOTE: Mass times are stored as a weekly pattern but read as dated occurrences everywhere - the calendar across
-// NOTE:  followed churches and a single church's profile. Expansion lives here so both get identical dates, and so
-// NOTE:  no client has to re-implement the weekday maths.
+// NOTE: Mass times are stored weekly but read as dated occurrences everywhere.
+// NOTE: Expansion lives here so the calendar and a church profile produce identical dates.
+// NOTE: It also keeps clients from re-implementing the weekday maths.
 public static class MassOccurrenceExpander
 {
     public static List<MassOccurrenceDto> Expand(IEnumerable<MassSchedulePatternResult> patterns, DateOnly fromDate, DateOnly toDate)
@@ -29,15 +29,15 @@ public static class MassOccurrenceExpander
                     IsActive = p.Reminder.IsActive
                 }
             }))
-            // NOTE: Re-sorted because expansion interleaves schedules; a day timeline reads straight down this list.
+            // NOTE: Re-sorted because expansion interleaves schedules.
             .OrderBy(i => i.Date)
             .ThenBy(i => i.MassTime)
             .ThenBy(i => i.ScheduleId)
             .ToList();
     }
 
-    // NOTE: Every date in the window on which this mass is celebrated. Weekly entries run the whole window; a special
-    // NOTE:  is clipped to its own valid_from/valid_to, so one that only partly overlaps yields just the days inside it.
+    // NOTE: Every date in the window on which this mass is celebrated.
+    // NOTE: Weekly entries run the whole window; a special is clipped to its own dates.
     private static IEnumerable<DateOnly> Occurrences(MassSchedulePatternResult schedule, DateOnly fromDate, DateOnly toDate)
     {
         var start = fromDate;
@@ -45,7 +45,7 @@ public static class MassOccurrenceExpander
 
         if (schedule.IsSpecial)
         {
-            // NOTE: A missing side of the window is open-ended, not empty - clip only where a bound actually exists.
+            // NOTE: A missing side is open-ended, so clip only where a bound exists.
             if (schedule.ValidFrom is { } validFrom && validFrom > start) start = validFrom;
             if (schedule.ValidTo is { } validTo && validTo < end) end = validTo;
         }
@@ -53,7 +53,7 @@ public static class MassOccurrenceExpander
         if (start > end)
             yield break;
 
-        // NOTE: DayOfWeek is 0=Sunday..6=Saturday in the DB, which is exactly System.DayOfWeek's own numbering.
+        // NOTE: DayOfWeek is 0=Sunday..6=Saturday, matching System.DayOfWeek.
         var shift = ((schedule.DayOfWeek - (int)start.DayOfWeek) + 7) % 7;
 
         for (var date = start.AddDays(shift); date <= end; date = date.AddDays(7))

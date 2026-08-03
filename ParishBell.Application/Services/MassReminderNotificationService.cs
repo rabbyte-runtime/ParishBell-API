@@ -30,12 +30,12 @@ public class MassReminderNotificationService(
 
     private async Task<int> EnqueueDueRemindersAsync(CancellationToken ct)
     {
-        // IMPORTANT: mass_time is wall-clock at the church, so every comparison below happens in local time and only
-        // IMPORTANT:  the stored timestamps stay UTC. Mixing the two is what would make pushes hours early or late.
+        // IMPORTANT: mass_time is wall-clock at the church, so comparisons happen in local time.
+        // NOTE: Only the stored timestamps stay UTC. Mixing the two sends pushes hours out.
         var localNow = DateTime.UtcNow.AddMinutes(_settings.LocalUtcOffsetMinutes);
         var windowStart = localNow.AddMinutes(-_settings.LookbackMinutes);
 
-        // NOTE: A fire time in the window can belong to a mass on either side of midnight, so both days are candidates.
+        // NOTE: A fire time can belong to a mass either side of midnight, so both days count.
         var candidateDates = new[] { DateOnly.FromDateTime(windowStart), DateOnly.FromDateTime(localNow) }.Distinct().ToList();
         var candidateDays = candidateDates.Select(d => (int)d.DayOfWeek).Distinct().ToList();
 
@@ -50,7 +50,7 @@ public class MassReminderNotificationService(
 
         if (due.Count == 0) return 0;
 
-        // NOTE: Anti-join on (user, schedule, date), so a reminder is queued once however often the job polls.
+        // NOTE: Anti-join on (user, schedule, date), so a reminder is queued exactly once.
         var already = await _repository.GetAlreadyNotifiedAsync(candidateDates.Min(), candidateDates.Max(), ct);
 
         var logs = due
@@ -71,14 +71,14 @@ public class MassReminderNotificationService(
         return logs.Count;
     }
 
-    // NOTE: Due when the moment to notify - the mass time less the user's chosen lead - has just passed. The window is
-    // NOTE:  half-open so a fire time is claimed by exactly one poll, and a long-past one is left alone as stale.
+    // NOTE: Due when the fire time - mass time less the chosen lead - has just passed.
+    // NOTE: The window is half-open, so exactly one poll claims each fire time.
     private static bool IsDue(DueMassReminder reminder, DateOnly date, DateTime windowStart, DateTime localNow)
     {
         if ((int)date.DayOfWeek != reminder.DayOfWeek)
             return false;
 
-        // NOTE: A special mass only exists inside its own window; a weekly one ignores whatever dates sit on the row.
+        // NOTE: A special only exists inside its window; a weekly one ignores those dates.
         if (reminder.IsSpecial)
         {
             if (reminder.ValidFrom is { } from && date < from) return false;
@@ -89,8 +89,8 @@ public class MassReminderNotificationService(
         return fireAt > windowStart && fireAt <= localNow;
     }
 
-    // NOTE: Wording lives in the messages table like every other user-facing string, so si/ta come from the same place.
-    //       An unseeded code degrades to the bare "PB-87" rather than throwing, which is why the format call is guarded.
+    // NOTE: Wording lives in the messages table, so si and ta come from the same place.
+    // NOTE: An unseeded code degrades to the bare code, which is why the format is guarded.
     private string BuildBody(DueMassReminder reminder)
     {
         var template = _messages.GetText(MessageCodes.MassReminderPushBody, reminder.LanguageCode);
@@ -119,7 +119,7 @@ public class MassReminderNotificationService(
             var result = await _pushService.SendToUserAsync(item.UserId, ToNotification(item), ct);
 
             // NOTE: Done when a device received it, or there was nothing to deliver (user has no devices).
-            //       Only a hard failure is left for the next poll to retry.
+            // NOTE: Only a hard failure is left for the next poll to retry.
             if (result.SuccessCount > 0 || result.FailureCount == 0)
                 delivered.Add(item.NotificationId);
         }
@@ -132,8 +132,8 @@ public class MassReminderNotificationService(
     {
         var data = new Dictionary<string, string> { ["type"] = "massReminder" };
 
-        // NOTE: The three ids the client deep-links on. Each is optional only because the mass could have been removed
-        //       between queueing and delivery, so the client must treat a thin payload as "open the church, not the day".
+        // NOTE: The three ids the client deep-links on, each optional.
+        // NOTE: The mass may vanish between queueing and delivery, so a thin payload is valid.
         if (item.ReferenceId is not null)
             data["scheduleId"] = item.ReferenceId.Value.ToString();
 

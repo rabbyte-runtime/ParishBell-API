@@ -8,7 +8,7 @@ public interface IMessageRepository
     // NOTE: Returns Dictionary[messageCode, Dictionary[languageCode, messageText]]
     Task<Dictionary<string, CachedMessage>> LoadAllAsync(CancellationToken ct = default);
 
-    // IMPORTANT: Internal DTO for the cache layer - holds the message type and per-language translations for a single message code
+    // IMPORTANT: Internal cache DTO - the message type plus its per-language translations.
     public class CachedMessage
     {
         public MessageType Type { get; set; }

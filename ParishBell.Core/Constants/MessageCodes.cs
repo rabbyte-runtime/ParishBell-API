@@ -70,10 +70,10 @@ public static class MessageCodes
     public const string MassRemindersRetrieved = "PB-80";
     public const string MassScheduleInvalidRange = "PB-86";
 
-    // NOTE: A push body template rather than an API response - "{0}" is the mass label, "{1}" the minutes before it starts.
+    // NOTE: A push body template, not an API response. {0} is the label, {1} the minutes.
     public const string MassReminderPushBody = "PB-87";
 
-    // NOTE: The feast day push title, used when the calendar entry has no translation at all. "{0}" is the church name.
+    // NOTE: The feast day push title, used when the entry has no translation at all.
     public const string FeastDayPushFallbackTitle = "PB-88";
     public const string AnnouncementRetrieved = "PB-89";
     public const string AnnouncementNotFound = "PB-90";

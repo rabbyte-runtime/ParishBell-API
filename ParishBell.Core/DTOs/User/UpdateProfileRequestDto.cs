@@ -2,13 +2,14 @@ using System.ComponentModel.DataAnnotations;
 
 namespace ParishBell.Core.DTOs.User;
 
-// NOTE: Partial update - omit a field (or send null) to leave it unchanged. Blank strings are rejected, not treated as "clear".
+// NOTE: Partial update - omit a field to leave it unchanged.
+// NOTE: Blank strings are rejected rather than treated as "clear".
 public class UpdateProfileRequestDto
 {
     [StringLength(255, MinimumLength = 2, ErrorMessage = "PB-18")]
     public string? FullName { get; set; }
 
-    // IMPORTANT: Email-provider accounts only. Google/Apple users own their email at the provider - 403 if they try.
+    // IMPORTANT: Email accounts only - social users own their email at the provider.
     [EmailAddress(ErrorMessage = "PB-20")]
     [StringLength(255, ErrorMessage = "PB-21")]
     public string? Email { get; set; }

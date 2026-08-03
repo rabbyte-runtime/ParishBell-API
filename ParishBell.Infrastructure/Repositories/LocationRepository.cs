@@ -92,7 +92,7 @@ public class LocationRepository(ParishBellDbContext dbContext) : ILocationReposi
             .Where(t => locationIds.Contains(t.LocationId) && (t.LanguageId == requestedId || t.LanguageId == englishId))
             .Select(t => new { t.LocationId, t.LanguageId, t.Name, t.Address }).ToListAsync(ct);
 
-        // NOTE: One query for the whole page rather than a follow lookup per card. Anonymous callers skip it entirely.
+        // NOTE: One query per page rather than a follow lookup per card.
         var followedIds = userId is null
             ? []
             : await _dbContext.UserFollowedLocations.AsNoTracking()
@@ -250,7 +250,7 @@ public class LocationRepository(ParishBellDbContext dbContext) : ILocationReposi
             .ToListAsync(ct);
 
         // NOTE: Active schedules only — idx_ms_active covers LocationId + IsActive
-        // NOTE: A special is kept only when its window overlaps the requested range; the service does the day-level intersection.
+        // NOTE: A special is kept only when its window overlaps the requested range.
         var rawSchedules = await _dbContext.MassSchedules
             .AsNoTracking()
             .Where(s => s.LocationId == locationId && s.IsActive
@@ -272,7 +272,7 @@ public class LocationRepository(ParishBellDbContext dbContext) : ILocationReposi
                 .ToListAsync(ct)
             : [];
 
-        // IMPORTANT: Scoped to the caller - a reminder is personal. Anonymous callers skip the query and get no bells.
+        // IMPORTANT: Scoped to the caller - a reminder is personal.
         var reminders = userId is null || scheduleIds.Count == 0
             ? []
             : await _dbContext.UserMassReminders
@@ -290,7 +290,7 @@ public class LocationRepository(ParishBellDbContext dbContext) : ILocationReposi
             // NOTE: uq_user_schedule makes this at most one row per user and mass.
             var reminder = reminders.FirstOrDefault(r => r.ScheduleId == s.ScheduleId);
 
-            // NOTE: The church is carried on every row so the shape matches the calendar's, even though it is redundant here.
+            // NOTE: The church rides on every row so the shape matches the calendar payload.
             return new MassSchedulePatternResult(
                 s.ScheduleId, locationId, name, s.DayOfWeek, s.MassTime, label, s.IsSpecial, s.ValidFrom, s.ValidTo,
                 reminder is null ? null : new MassReminderResult(reminder.ReminderId, reminder.MinutesBefore, reminder.IsActive));
@@ -332,7 +332,7 @@ public class LocationRepository(ParishBellDbContext dbContext) : ILocationReposi
             return new FeastDayResult(f.LocationFeastDayId, f.IsHighlighted, f.IsHolyDay, f.IsRecurringAnnually, f.Month, f.Day, f.SpecificDate, title, desc);
         }).ToList();
 
-        // NOTE: Folded in here so opening the detail sheet is one call - it used to cost a separate GET .../follow.
+        // NOTE: Folded in so the detail sheet opens in one call, not two.
         var isFollowing = userId is not null
             && await _dbContext.UserFollowedLocations.AsNoTracking()
                 .AnyAsync(f => f.UserId == userId.Value && f.LocationId == locationId, ct);

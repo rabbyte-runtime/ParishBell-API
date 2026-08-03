@@ -22,10 +22,13 @@ public class MassController(
     private readonly IMessageCache _messages = messages;
 
     // NOTE: GET /api/v1/mass/schedule
-    // IMPORTANT: Requires User JWT. One month of mass times across the churches the caller follows - following nothing returns an empty list, not a 404.
-    // NOTE: Optional ?month=(1-12) and ?year= filter to a single month for the calendar UI; both default to the current UTC month/year.
-    // NOTE: Mirrors GET /locations/followed/events on purpose - the client merges both onto one month grid, so weekly masses come back already expanded onto dates.
-    // NOTE: Each occurrence carries the caller's own reminder (reminderId, minutesBefore, isActive) or null - no second call is needed to render the bells.
+    // IMPORTANT: Requires User JWT. One month across the churches the caller follows.
+    // NOTE: Following nothing returns an empty list, not a 404.
+    // NOTE: Optional ?month= and ?year= filter to one month, defaulting to the current.
+    // NOTE: Mirrors /locations/followed/events so the client can merge both onto one grid.
+    // NOTE: Weekly masses come back already expanded onto dates.
+    // NOTE: Each occurrence carries the caller reminder, or null.
+    // NOTE: No second call is needed to render the bells.
     [HttpGet("schedule")]
     public Task<IActionResult> GetFollowedMassSchedules(
         [FromHeader(Name = "Accept-Language")] string? acceptLanguage,
@@ -50,10 +53,11 @@ public class MassController(
         }, month, year);
 
     // NOTE: POST /api/v1/mass/reminders
-    // IMPORTANT: Requires User JWT. Always sets the reminder for the token's own user - the caller cannot set one for another.
-    // NOTE: Idempotent upsert keyed by (user, schedule) - posting again re-times an existing reminder and switches a disabled one back on, rather than failing on uq_user_schedule.
-    // NOTE: Returns the saved reminder so the calendar can rebind the bell without re-fetching the month.
-    // NOTE: 404 when the mass does not exist or its church is no longer visible, 422 when minutesBefore falls outside 1-1440.
+    // IMPORTANT: Requires User JWT. Always sets the reminder for the token own user.
+    // NOTE: Idempotent upsert keyed by (user, schedule), so posting again re-times it.
+    // NOTE: It also switches a disabled reminder back on rather than failing.
+    // NOTE: Returns the saved reminder so the calendar rebinds without re-fetching.
+    // NOTE: 404 when the mass is gone or hidden, 422 when minutesBefore is outside 1-1440.
     [HttpPost("reminders")]
     public Task<IActionResult> SetMassReminder([FromBody] SetMassReminderRequestDto request, CancellationToken ct) =>
         ExecuteAsync(nameof(SetMassReminder), async () =>
@@ -65,8 +69,9 @@ public class MassController(
         }, request.ScheduleId, request.MinutesBefore);
 
     // NOTE: DELETE /api/v1/mass/reminders/{reminderId}
-    // IMPORTANT: Requires User JWT. Scoped to the caller - another user's reminder id returns 404, not 403.
-    // IMPORTANT: Cancels rather than erases: the row is kept switched off, so the schedule endpoint reports it as isActive:false and POSTing again revives it.
+    // IMPORTANT: Requires User JWT. Another user reminder id returns 404, not 403.
+    // IMPORTANT: Cancels rather than erases - the row is kept switched off.
+    // NOTE: The schedule endpoint reports isActive:false, and POSTing again revives it.
     // NOTE: Idempotent - cancelling an already-cancelled reminder succeeds.
     [HttpDelete("reminders/{reminderId:guid}")]
     public Task<IActionResult> RemoveMassReminder(Guid reminderId, CancellationToken ct) =>

@@ -9,7 +9,7 @@ public class LocationFollowService(ILocationFollowRepository followRepository, I
 {
     private readonly ILocationFollowRepository _followRepository = followRepository;
 
-    // NOTE: Unfollowing has to reach the user's reminders too - the row has no link to follow state of its own.
+    // NOTE: Unfollowing must reach reminders too - they have no link to follow state.
     private readonly IMassReminderRepository _reminderRepository = reminderRepository;
 
     public async Task<FollowStatusDto> GetFollowStatusAsync(Guid userId, Guid locationId, CancellationToken ct = default)
@@ -32,9 +32,9 @@ public class LocationFollowService(ILocationFollowRepository followRepository, I
         // NOTE: Idempotent - no location existence check needed; removing a missing follow is a no-op.
         await _followRepository.RemoveFollowAsync(userId, locationId, ct);
 
-        // IMPORTANT: Mass reminders survive an unfollow on their own, and would keep pushing from a church the user
-        // IMPORTANT:  has left - an alert they can no longer trace to anything on screen. Cancel them with the follow.
-        // NOTE: Cancelled, not deleted, so GET /users/me/reminders still shows them and one tap puts them back.
+        // IMPORTANT: Reminders survive an unfollow and would keep pushing from a church left behind.
+        // NOTE: An alert the user can no longer trace to anything on screen.
+        // NOTE: Cancelled, not deleted, so the reminders list still shows them for one-tap revival.
         await _reminderRepository.DisableForLocationAsync(userId, locationId, ct);
     }
 }

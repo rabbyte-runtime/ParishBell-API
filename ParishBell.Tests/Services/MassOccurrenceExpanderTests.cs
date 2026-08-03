@@ -3,8 +3,8 @@ using ParishBell.Core.DTOs.Common;
 
 namespace ParishBell.Tests.Services;
 
-// NOTE: The expansion the calendar and the church profile now share. Both surfaces must produce identical dates from
-// NOTE:  the same rows, so the rules live here rather than being asserted twice through their services.
+// NOTE: The expansion the calendar and the church profile now share.
+// NOTE: The rules live here rather than being asserted twice through their services.
 public class MassOccurrenceExpanderTests
 {
     private readonly Guid _locationId = Guid.NewGuid();

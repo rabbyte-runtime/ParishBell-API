@@ -1,6 +1,7 @@
 namespace ParishBell.Core.DTOs.User;
 
-// NOTE: One switch per push type the user can opt out of - matches NotificationType 1..4. System pushes are not optional.
+// NOTE: One switch per push type, matching NotificationType 1..4.
+// NOTE: System pushes are not optional.
 public class NotificationPreferencesDto
 {
     public bool Events { get; set; }

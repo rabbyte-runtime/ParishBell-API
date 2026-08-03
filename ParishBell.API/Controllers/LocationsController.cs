@@ -23,7 +23,7 @@ public class LocationsController(
     private readonly IAnnouncementService _announcementService = announcementService;
     private readonly IMessageCache _messages = messages;
 
-    // NOTE: Seven days inclusive of today - the "what's on this week" the church profile's mass tab shows.
+    // NOTE: Seven days inclusive of today - the week the profile mass tab shows.
     private const int DefaultMassWindowDays = 6;
 
     // NOTE: Room for a month view without letting a caller ask for years of expanded occurrences.
@@ -31,11 +31,13 @@ public class LocationsController(
 
     // NOTE: GET /api/v1/locations/{locationId}
     // IMPORTANT: Public - no JWT required.
-    // NOTE: isFollowing is folded in when a token is present, so the detail sheet opens in one call instead of also hitting GET .../follow.
-    // NOTE: An anonymous caller always gets isFollowing:false - that is "not signed in", not "not following".
-    // NOTE: massSchedules are dated occurrences, the same shape GET /api/v1/mass/schedule returns - the client never projects weekdays onto dates itself.
-    // NOTE: Optional ?massFrom=&massTo= ("yyyy-MM-dd") pick the window; it defaults to the coming week. Capped at 62 days, and an inverted range is a 400.
-    // NOTE: Each occurrence carries the caller's reminder when a token is present, so the profile's bells work like the calendar's.
+    // NOTE: isFollowing is folded in when a token is present, so this is one call.
+    // NOTE: Anonymous callers get isFollowing:false - not signed in, not "not following".
+    // NOTE: massSchedules are dated occurrences, the same shape /mass/schedule returns.
+    // NOTE: The client never projects weekdays onto dates itself.
+    // NOTE: Optional ?massFrom= and ?massTo= pick the window, defaulting to the coming week.
+    // NOTE: Capped at 62 days; an inverted range is a 400.
+    // NOTE: Occurrences carry the caller reminder, so profile bells match the calendar.
     [HttpGet("{locationId:guid}")]
     public Task<IActionResult> GetLocation(
         Guid locationId,
@@ -47,12 +49,12 @@ public class LocationsController(
         {
             var languageCode = string.IsNullOrWhiteSpace(acceptLanguage) ? "en" : acceptLanguage.Trim();
 
-            // NOTE: "This week" is what the profile's mass tab asks for, so that is what an unqualified call returns.
+            // NOTE: An unqualified call returns this week, which is what the mass tab wants.
             var today = DateOnly.FromDateTime(DateTime.UtcNow);
             var resolvedFrom = massFrom ?? today;
             var resolvedTo = massTo ?? resolvedFrom.AddDays(DefaultMassWindowDays);
 
-            // IMPORTANT: Expansion is linear in the window, so an unbounded range would let one call fan out indefinitely.
+            // IMPORTANT: Expansion is linear in the window, so an unbounded range fans out.
             if (resolvedTo < resolvedFrom || resolvedFrom.AddDays(MaxMassWindowDays) < resolvedTo)
                 throw new BadRequestException(MessageCodes.MassScheduleInvalidRange);
 
@@ -63,7 +65,7 @@ public class LocationsController(
 
     // NOTE: GET /api/v1/locations/{locationId}/events
     // IMPORTANT: Requires User JWT.
-    // NOTE: fromDate/toDate are optional date filters ("yyyy-MM-dd"). Results ordered ascending by event date.
+    // NOTE: Optional fromDate/toDate filters. Ordered ascending by event date.
     [Authorize]
     [HttpGet("{locationId:guid}/events")]
     public Task<IActionResult> GetLocationEvents(
@@ -83,7 +85,7 @@ public class LocationsController(
         }, locationId, fromDate, toDate);
 
     // NOTE: GET /api/v1/locations/{locationId}/announcements
-    // IMPORTANT: Requires User JWT. Joined-members-only channel — 403 if the caller doesn't follow the location.
+    // IMPORTANT: Requires User JWT. Joined-members only - 403 when not following.
     // NOTE: Time-limited audio/video posts, newest first. Expired posts are filtered out server-side.
     // NOTE: Supply page + pageSize (default 20) to lazy-load; omit both to return the full active list.
     [Authorize]
@@ -105,9 +107,11 @@ public class LocationsController(
 
     // NOTE: GET /api/v1/locations
     // IMPORTANT: Public - no JWT required; used by the map and search before the user signs in.
-    // NOTE: Optional ?q= searches name + address. Optional bbox params (minLat/maxLat/minLng/maxLng) limit to the visible viewport.
-    // NOTE: Supply userLat + userLng to order by nearest-first and populate distanceKm in each item. Supply page + pageSize (default 100) to lazy-load the list.
-    // NOTE: isFollowing is resolved in one batched query when a token is present, so the list needs no follow lookup per card.
+    // NOTE: Optional ?q= searches name and address.
+    // NOTE: Optional bbox params limit results to the visible viewport.
+    // NOTE: userLat and userLng order by nearest-first and populate distanceKm.
+    // NOTE: page and pageSize (default 100) lazy-load the list.
+    // NOTE: isFollowing is one batched query, so no follow lookup per card.
     [HttpGet]
     public Task<IActionResult> GetLocations([FromHeader(Name = "Accept-Language")] string? acceptLanguage, [FromQuery] decimal? minLat, [FromQuery] decimal? maxLat,
     [FromQuery] decimal? minLng, [FromQuery] decimal? maxLng, [FromQuery] string? q, [FromQuery] decimal? userLat, [FromQuery] decimal? userLng, [FromQuery] int? page,
@@ -121,7 +125,7 @@ public class LocationsController(
         }, q, page, pageSize);
 
     // NOTE: GET /api/v1/locations/followed
-    // IMPORTANT: Requires User JWT. Returns the locations the current user follows, most recently followed first.
+    // IMPORTANT: Requires User JWT. The user follows, most recently followed first.
     // NOTE: Supply page + pageSize (default 50) to lazy-load; omit both to return the full list.
     [Authorize]
     [HttpGet("followed")]
@@ -137,8 +141,8 @@ public class LocationsController(
 
     // NOTE: GET /api/v1/locations/followed/events
     // IMPORTANT: Requires User JWT. Published events across every location the current user follows.
-    // NOTE: Optional ?month=(1-12) and ?year= filter to a single month for the calendar UI; both default to the current UTC month/year.
-    // NOTE: Returns a flat list ordered by date then start time, each entry tagged with its locationId and locationName.
+    // NOTE: Optional ?month= and ?year= filter to one month, defaulting to the current.
+    // NOTE: A flat list by date then start time, each tagged with its church.
     [Authorize]
     [HttpGet("followed/events")]
     public Task<IActionResult> GetFollowedEvents(
@@ -165,7 +169,7 @@ public class LocationsController(
 
     // NOTE: GET /api/v1/locations/{locationId}/follow
     // IMPORTANT: Requires User JWT. Returns whether the current user follows the location.
-    // NOTE: Still here for an authoritative answer, but the detail and list payloads now carry isFollowing, so the app rarely needs it.
+    // NOTE: Still here for an authoritative answer, but the payloads now carry isFollowing.
     [Authorize]
     [HttpGet("{locationId:guid}/follow")]
     public Task<IActionResult> GetFollowStatus(Guid locationId, CancellationToken ct) =>
@@ -192,8 +196,8 @@ public class LocationsController(
 
     // NOTE: DELETE /api/v1/locations/{locationId}/follow
     // IMPORTANT: Requires User JWT. Idempotent — unfollowing a non-followed location returns success.
-    // IMPORTANT: Also cancels the caller's mass reminders at that church - they are not tied to the follow row, and would
-    // IMPORTANT:  otherwise keep pushing from a church the user has left.
+    // IMPORTANT: Also cancels the caller mass reminders at that church.
+    // NOTE: They are not tied to the follow row and would keep pushing otherwise.
     [Authorize]
     [HttpDelete("{locationId:guid}/follow")]
     public Task<IActionResult> UnfollowLocation(Guid locationId, CancellationToken ct) =>

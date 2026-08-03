@@ -45,8 +45,8 @@ public class LocationFollowRepository(ParishBellDbContext dbContext) : ILocation
         }
         catch (DbUpdateException)
         {
-            // NOTE: A concurrent request inserted the same composite PK between the check and the save.
-            //       The desired end state already holds, so treat it as success.
+            // NOTE: A concurrent request inserted the same composite PK before this save.
+            // NOTE: The desired end state already holds, so treat it as success.
         }
     }
 

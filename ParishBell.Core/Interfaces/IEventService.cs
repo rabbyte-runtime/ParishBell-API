@@ -13,7 +13,8 @@ public interface IEventService
         int? pageSize,
         CancellationToken ct = default);
 
-    // NOTE: One event by id, for a push deep-link or a shared parishbell://events/{id} link. Throws NotFound when it is gone or hidden.
+    // NOTE: One event by id, for a push deep-link or a share link.
+    // NOTE: Throws NotFound when it is gone or hidden.
     Task<EventDetailDto> GetEventByIdAsync(Guid eventId, string languageCode, CancellationToken ct = default);
 
     Task<FollowedEventsCalendarDto> GetFollowedEventsAsync(

@@ -782,7 +782,7 @@ public class UserServiceTests
         _mockPhotoStorage.Verify(s => s.UploadAsync(It.IsAny<Guid>(), It.IsAny<Stream>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
-    // IMPORTANT: TEST 37 - Removing deletes the blob, clears the column, and falls back to the provider photo
+    // IMPORTANT: TEST 37 - Removing deletes the blob and falls back to the provider photo
     [Fact]
     public async Task RemoveProfilePhoto_DeletesBlobAndFallsBackToProviderPhoto()
     {

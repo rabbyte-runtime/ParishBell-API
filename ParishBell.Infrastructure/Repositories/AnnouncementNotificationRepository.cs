@@ -38,8 +38,8 @@ public class AnnouncementNotificationRepository(ParishBellDbContext dbContext) :
 
     public async Task<IReadOnlyList<NotificationRecipient>> GetFollowersWithoutLogAsync(Guid announcementId, Guid locationId, CancellationToken ct = default)
     {
-        // NOTE: Followers of the location, minus anyone already logged for this announcement (NOT EXISTS).
-        //       Keeps the fan-out idempotent and safe to run every poll.
+        // NOTE: Followers minus anyone already logged for this announcement (NOT EXISTS).
+        // NOTE: Keeps the fan-out idempotent and safe to run every poll.
         return await _dbContext.UserFollowedLocations
             .AsNoTracking()
             .Where(f => f.LocationId == locationId && f.User.IsActive)
@@ -76,9 +76,8 @@ public class AnnouncementNotificationRepository(ParishBellDbContext dbContext) :
                 Body = n.Body,
                 ReferenceId = n.ReferenceId,
 
-                // NOTE: notifications_log stores only the polymorphic reference, so the church is looked up
-                //       here. Announcements are the only type with a sender today; the rest resolve to null
-                //       until theirs exist.
+                // NOTE: The log stores only the polymorphic reference, so the church is looked up here.
+                // NOTE: Other types resolve to null until their own senders exist.
                 LocationId = n.Type == AnnouncementType
                     ? _dbContext.Announcements.Where(a => a.AnnouncementId == n.ReferenceId).Select(a => (Guid?)a.LocationId).FirstOrDefault()
                     : null

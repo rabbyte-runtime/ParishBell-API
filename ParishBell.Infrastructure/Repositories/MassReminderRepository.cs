@@ -23,8 +23,8 @@ public class MassReminderRepository(ParishBellDbContext dbContext) : IMassRemind
         var englishId = langs.FirstOrDefault(l => l.LanguageCode == DefaultLanguageCode)?.LanguageId;
         var requestedId = langs.FirstOrDefault(l => l.LanguageCode == languageCode)?.LanguageId ?? englishId;
 
-        // NOTE: A reminder on a hidden mass or church can never fire and has nothing to render, so it is dropped rather than listed.
-        // NOTE: Ordered as a weekly agenda - day, then time, then schedule for a stable order across churches sharing a slot.
+        // NOTE: A reminder on a hidden mass or church can never fire, so it is dropped.
+        // NOTE: Ordered as a weekly agenda - day, then time, then schedule for stability.
         var reminders = await _dbContext.UserMassReminders
             .AsNoTracking()
             .Where(r => r.UserId == userId && r.Schedule.IsActive
@@ -65,7 +65,7 @@ public class MassReminderRepository(ParishBellDbContext dbContext) : IMassRemind
             .Select(t => new { t.LocationId, t.LanguageId, t.Name })
             .ToListAsync(ct);
 
-        // NOTE: Follow state is not part of the reminder - it is looked up so the list can flag ones the user has walked away from.
+        // NOTE: Follow state is looked up separately so the list can flag churches the user left.
         var followedLocationIds = await _dbContext.UserFollowedLocations
             .AsNoTracking()
             .Where(f => f.UserId == userId && locationIds.Contains(f.LocationId))
@@ -104,7 +104,7 @@ public class MassReminderRepository(ParishBellDbContext dbContext) : IMassRemind
 
     public async Task<bool> IsScheduleRemindableAsync(Guid scheduleId, CancellationToken ct = default)
     {
-        // NOTE: The church has to be live too - a mass at a rejected or deactivated location is not something to be reminded about.
+        // NOTE: The church must be live too - a mass at a hidden location is not remindable.
         return await _dbContext.MassSchedules
             .AsNoTracking()
             .AnyAsync(s => s.ScheduleId == scheduleId && s.IsActive
@@ -144,8 +144,8 @@ public class MassReminderRepository(ParishBellDbContext dbContext) : IMassRemind
         }
         catch (DbUpdateException)
         {
-            // NOTE: A concurrent request inserted the same (user, schedule) between the check and the save.
-            //       Drop our failed insert, then update the row that won the race so the end state is ours.
+            // NOTE: A concurrent request inserted the same (user, schedule) before this save.
+            // NOTE: Drop our failed insert, then update the row that won the race.
             _dbContext.Entry(reminder).State = EntityState.Detached;
 
             var raced = await _dbContext.UserMassReminders
@@ -165,8 +165,8 @@ public class MassReminderRepository(ParishBellDbContext dbContext) : IMassRemind
 
     public async Task<int> DisableForLocationAsync(Guid userId, Guid locationId, CancellationToken ct = default)
     {
-        // NOTE: Cancelled rather than deleted, matching DELETE - re-following and re-enabling keeps the original timing.
-        // NOTE: Restricted to still-active rows so an unfollow of a church with nothing set costs no writes.
+        // NOTE: Cancelled rather than deleted, so re-enabling keeps the original timing.
+        // NOTE: Restricted to active rows, so an unfollow with nothing set costs no writes.
         return await _dbContext.UserMassReminders
             .Where(r => r.UserId == userId && r.IsActive && r.Schedule.LocationId == locationId)
             .ExecuteUpdateAsync(s => s.SetProperty(r => r.IsActive, false), ct);
@@ -174,9 +174,9 @@ public class MassReminderRepository(ParishBellDbContext dbContext) : IMassRemind
 
     public async Task<bool> DisableAsync(Guid userId, Guid reminderId, CancellationToken ct = default)
     {
-        // NOTE: Scoped to the owner so a caller cannot switch off another user's reminder. Re-cancelling an off one still matches.
-        // IMPORTANT: The row is kept rather than deleted - uq_user_schedule means re-setting the reminder reuses it, and the
-        //            schedule endpoint reports it as isActive:false so the bell can render off rather than unset.
+        // NOTE: Scoped to the owner, so a caller cannot switch off another user's reminder.
+        // IMPORTANT: The row is kept rather than deleted - uq_user_schedule means re-setting reuses it.
+        // NOTE: The schedule endpoint reports it as isActive:false so the bell renders off, not unset.
         var affected = await _dbContext.UserMassReminders
             .Where(r => r.ReminderId == reminderId && r.UserId == userId)
             .ExecuteUpdateAsync(s => s.SetProperty(r => r.IsActive, false), ct);

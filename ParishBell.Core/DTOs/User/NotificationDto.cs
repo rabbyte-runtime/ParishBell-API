@@ -18,7 +18,7 @@ public class NotificationDto
 {
     public Guid NotificationId { get; set; }
 
-    // NOTE: "Event" | "Announcement" | "MassReminder" | "FeastDay" - drives the row icon and the tap target.
+    // NOTE: Event, Announcement, MassReminder or FeastDay - drives icon and tap target.
     public string Type { get; set; } = default!;
 
     public string Title { get; set; } = default!;
@@ -30,17 +30,17 @@ public class NotificationDto
     public bool IsRead { get; set; }
 
     // NOTE: Deep-link targets. Exactly which are populated depends on Type; the rest are null.
-    //       Event -> locationId + eventId. Announcement -> locationId + announcementId.
-    //       MassReminder -> locationId. FeastDay -> locationId + calendarId.
+    // NOTE: Event and Announcement add their own id. FeastDay adds calendarId.
+    // NOTE: MassReminder carries locationId plus scheduleId.
     public Guid? LocationId { get; set; }
     public Guid? EventId { get; set; }
     public Guid? AnnouncementId { get; set; }
     public Guid? CalendarId { get; set; }
 
-    // NOTE: MassReminder only - the mass this reminder was for, so the row can open that mass rather than dead-ending at the church.
+    // NOTE: MassReminder only - the mass this was for, so the row opens that mass.
     public Guid? ScheduleId { get; set; }
 
-    // NOTE: "yyyy-MM-dd" for MassReminder and FeastDay - the day the row is about, so a tap can land on it in the calendar.
-    //       Null on Event and Announcement, which carry their own typed id instead.
+    // NOTE: "yyyy-MM-dd" for MassReminder and FeastDay, so a tap lands on that day.
+    // NOTE: Null on Event and Announcement, which carry their own typed id.
     public string? Date { get; set; }
 }

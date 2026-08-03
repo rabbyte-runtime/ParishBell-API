@@ -16,8 +16,9 @@ public class LiturgicalCalendarController(ILiturgicalCalendarService calendarSer
 
     // NOTE: GET /api/v1/liturgical-calendar
     // IMPORTANT: Requires User JWT.
-    // NOTE: Optional ?month=(1-12) and ?year= filter the calendar; both default to the current UTC month/year.
-    // NOTE: Returns every entry that occurs in that month - recurring annual feasts plus one-off entries whose specific date falls in the requested month and year - ordered chronologically by day.
+    // NOTE: Optional ?month= and ?year= filter the calendar, defaulting to the current month.
+    // NOTE: Returns every entry occurring that month, ordered by day.
+    // NOTE: Recurring annual feasts plus one-off entries dated inside the month.
     [Authorize]
     [HttpGet]
     public Task<IActionResult> GetCalendar(

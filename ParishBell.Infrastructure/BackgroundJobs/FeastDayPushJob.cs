@@ -23,8 +23,8 @@ public class FeastDayPushJob(
             return;
         }
 
-        // NOTE: Floor the interval so a misconfigured value can't hot-loop the job. A feast is a whole day, so this
-        //       polls far less often than the mass reminder job - the send window is hours wide, not minutes.
+        // NOTE: Floor the interval so a misconfigured value can't hot-loop the job.
+        // NOTE: Polls far less often than the reminder job - the send window is hours, not minutes.
         var interval = TimeSpan.FromSeconds(Math.Max(60, _settings.PollIntervalSeconds));
 
         // NOTE: Let the app finish starting before the first poll.

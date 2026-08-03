@@ -34,7 +34,7 @@ public class FeastDayNotificationServiceTests
 
         var localNow = DateTime.UtcNow.AddMinutes(OffsetMinutes);
 
-        // NOTE: The send window is anchored to the local hour, so the tests aim it at "now" to stay time-independent.
+        // NOTE: The window is anchored to the local hour, aimed at now to stay time-independent.
         _settings = new FeastDayPushSettings
         {
             LocalUtcOffsetMinutes = OffsetMinutes,
@@ -88,7 +88,7 @@ public class FeastDayNotificationServiceTests
         };
     }
 
-    // IMPORTANT: TEST 1 - A recurring feast falling today is queued, dated and worded in the recipient's language
+    // IMPORTANT: TEST 1 - A recurring feast today is queued, dated and localised
     [Fact]
     public async Task ProcessDue_RecurringFeastToday_QueuesIt()
     {
@@ -169,7 +169,7 @@ public class FeastDayNotificationServiceTests
         Assert.Equal(0, result.Enqueued);
     }
 
-    // IMPORTANT: TEST 5 - Recipients already logged for that day are excluded by the repository, so nothing is queued
+    // IMPORTANT: TEST 5 - Recipients already logged that day are excluded, so nothing queues
     [Fact]
     public async Task ProcessDue_WhenEveryoneAlreadyNotified_QueuesNothing()
     {
@@ -186,7 +186,7 @@ public class FeastDayNotificationServiceTests
         Assert.Equal(0, result.Enqueued);
     }
 
-    // IMPORTANT: TEST 6 - A feast with no translation at all still gets a usable push rather than being dropped
+    // IMPORTANT: TEST 6 - A feast with no translation still gets a usable push
     [Fact]
     public async Task ProcessDue_WithNoTranslations_FallsBackToTheCodedTitle()
     {

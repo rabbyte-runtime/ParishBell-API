@@ -26,12 +26,12 @@ public class UsersController(
     private readonly IMassReminderService _reminderService = reminderService;
     private readonly IMessageCache _messages = messages;
 
-    // NOTE: Mirrors BlobStorageSettings.MaxUploadBytes - must be a constant for the RequestSizeLimit attribute.
+    // NOTE: Mirrors BlobStorageSettings.MaxUploadBytes - RequestSizeLimit needs a constant.
     private const int MaxPhotoBytes = 12 * 1024 * 1024;
 
     // NOTE: GET /api/v1/users/me
-    // IMPORTANT: Requires User JWT. The profile returned is always the token's own user - the caller cannot ask for another.
-    // NOTE: 404 when the account no longer exists, 401 when it has been deactivated - both mean the app should sign out.
+    // IMPORTANT: Requires User JWT. Always the token own user, never another.
+    // NOTE: 404 when the account is gone, 401 when deactivated - both mean sign out.
     [HttpGet("me")]
     public Task<IActionResult> GetMe(CancellationToken ct) =>
         ExecuteAsync(nameof(GetMe), async () =>
@@ -44,8 +44,9 @@ public class UsersController(
 
     // NOTE: PUT /api/v1/users/me
     // IMPORTANT: Requires User JWT. Edits the token's own user - the caller cannot update another.
-    // NOTE: Partial update - fields left out (or null) keep their stored value. Returns the saved profile so the app can rebind.
-    // NOTE: 403 when a Google/Apple user tries to change their email, 409 when the address is taken, 400 for an unknown language.
+    // NOTE: Partial update - omitted fields keep their stored value.
+    // NOTE: Returns the saved profile so the app can rebind.
+    // NOTE: 403 on a social email change, 409 when taken, 400 for an unknown language.
     [HttpPut("me")]
     public Task<IActionResult> UpdateMe([FromBody] UpdateProfileRequestDto request, CancellationToken ct) =>
         ExecuteAsync(nameof(UpdateMe), async () =>
@@ -57,11 +58,12 @@ public class UsersController(
         });
 
     // NOTE: PUT /api/v1/users/me/photo
-    // IMPORTANT: Requires User JWT. Multipart form upload under the field name "photo". Replaces whatever the user had.
-    // NOTE: Open to every provider - a Google or Apple user may override their account photo with one of their own.
-    // NOTE: The image is cropped square and re-encoded server-side, so the stored photo is ours, not the uploaded bytes.
-    // NOTE: Rate limited per user - each upload costs a decode and a blob write, and nothing else a user can do is this expensive.
-    // NOTE: Returns the profile with a freshly minted photo URL. 422 when the file is missing or oversized, 400 when it is not a decodable image.
+    // IMPORTANT: Requires User JWT. Multipart upload under the field name "photo".
+    // NOTE: Open to every provider - a social user may override their account photo.
+    // NOTE: Cropped square and re-encoded server-side, so the stored photo is ours.
+    // NOTE: Rate limited per user - each upload costs a decode and a blob write.
+    // NOTE: Returns the profile with a freshly minted photo URL.
+    // NOTE: 422 when missing or oversized, 400 when not a decodable image.
     [HttpPut("me/photo")]
     [EnableRateLimiting("upload")]
     [RequestSizeLimit(MaxPhotoBytes)]
@@ -71,7 +73,7 @@ public class UsersController(
             if (photo is null || photo.Length == 0)
                 throw new UnprocessableException(MessageCodes.ValidationPhotoRequired);
 
-            // NOTE: Checked here as well as by RequestSizeLimit, which rejects at the pipeline with no coded message.
+            // NOTE: Also checked by RequestSizeLimit, which rejects with no coded message.
             if (photo.Length > MaxPhotoBytes)
                 throw new UnprocessableException(MessageCodes.ValidationPhotoTooLarge);
 
@@ -85,7 +87,8 @@ public class UsersController(
         }, photo?.Length, photo?.ContentType);
 
     // NOTE: DELETE /api/v1/users/me/photo
-    // IMPORTANT: Requires User JWT. Removes the blob and clears the column, so the Google/Apple photo takes over again - or nothing does, and the app draws initials.
+    // IMPORTANT: Requires User JWT. Removes the blob and clears the column.
+    // NOTE: The provider photo takes over, or the app draws initials.
     // NOTE: Idempotent - a user who never uploaded one still gets a 200 and their profile back.
     [HttpDelete("me/photo")]
     public Task<IActionResult> RemovePhoto(CancellationToken ct) =>
@@ -98,9 +101,9 @@ public class UsersController(
         });
 
     // NOTE: GET /api/v1/users/me/notifications
-    // IMPORTANT: Requires User JWT. The signed-in user's inbox, newest first. Only delivered notifications appear.
+    // IMPORTANT: Requires User JWT. The inbox newest first, delivered rows only.
     // NOTE: page defaults to 1, pageSize to 20 and is capped at 100. hasMore drives the lazy-load.
-    // NOTE: Each item carries the deep-link ids for its type - locationId, eventId, announcementId, calendarId, scheduleId - null where they do not apply.
+    // NOTE: Each item carries the deep-link ids for its type, null where they do not apply.
     [HttpGet("me/notifications")]
     public Task<IActionResult> GetNotifications([FromQuery] int? page, [FromQuery] int? pageSize, CancellationToken ct) =>
         ExecuteAsync(nameof(GetNotifications), async () =>
@@ -113,7 +116,8 @@ public class UsersController(
 
     // NOTE: GET /api/v1/users/me/notifications/unread-count
     // IMPORTANT: Requires User JWT. Counts the caller's own unread notifications only.
-    // NOTE: Counts exactly what the inbox list would show, so the badge and the list always agree. An empty inbox is 0, not a 404.
+    // NOTE: Counts exactly what the list shows, so badge and list always agree.
+    // NOTE: An empty inbox is 0, not a 404.
     [HttpGet("me/notifications/unread-count")]
     public Task<IActionResult> GetUnreadNotificationCount(CancellationToken ct) =>
         ExecuteAsync(nameof(GetUnreadNotificationCount), async () =>
@@ -125,7 +129,7 @@ public class UsersController(
         });
 
     // NOTE: PUT /api/v1/users/me/notifications/{notificationId}/read
-    // IMPORTANT: Requires User JWT. Scoped to the caller - another user's notification id returns 404, not 403.
+    // IMPORTANT: Requires User JWT. Another user notification id returns 404, not 403.
     // NOTE: Idempotent - marking an already-read notification succeeds.
     [HttpPut("me/notifications/{notificationId:guid}/read")]
     public Task<IActionResult> MarkNotificationRead(Guid notificationId, CancellationToken ct) =>
@@ -138,7 +142,7 @@ public class UsersController(
         }, notificationId);
 
     // NOTE: POST /api/v1/users/me/notifications/read-all
-    // IMPORTANT: Requires User JWT. Clears the unread badge in one call. Idempotent - an empty inbox succeeds.
+    // IMPORTANT: Requires User JWT. Clears the badge in one idempotent call.
     [HttpPost("me/notifications/read-all")]
     public Task<IActionResult> MarkAllNotificationsRead(CancellationToken ct) =>
         ExecuteAsync(nameof(MarkAllNotificationsRead), async () =>
@@ -150,11 +154,13 @@ public class UsersController(
         });
 
     // NOTE: GET /api/v1/users/me/reminders
-    // IMPORTANT: Requires User JWT. Every mass reminder the caller has set, in one place - the calendar only shows them a month at a time.
-    // NOTE: A weekly agenda, ordered by dayOfWeek (0=Sunday) then massTime. No paging - a user has a handful of these.
-    // NOTE: Cancelled reminders are included as isActive:false so they can be revived; POST /api/v1/mass/reminders with the scheduleId does that.
-    // NOTE: isFollowing flags reminders at churches the caller has since unfollowed - unfollowing now cancels them, so these are historical rather than live.
-    // NOTE: Reminders whose mass or church has been hidden are left out entirely; they can never fire again.
+    // IMPORTANT: Requires User JWT. Every reminder the caller has set, in one place.
+    // NOTE: The calendar only ever shows them a month at a time.
+    // NOTE: A weekly agenda by dayOfWeek then massTime. No paging - there are few.
+    // NOTE: Cancelled reminders come back as isActive:false so they can be revived.
+    // NOTE: isFollowing flags churches the caller left. Unfollowing cancels them too.
+    // NOTE: Those rows are historical rather than live.
+    // NOTE: Reminders on a hidden mass or church are left out - they can never fire.
     [HttpGet("me/reminders")]
     public Task<IActionResult> GetMassReminders(
         [FromHeader(Name = "Accept-Language")] string? acceptLanguage,
@@ -170,7 +176,7 @@ public class UsersController(
 
     // NOTE: GET /api/v1/users/me/notification-preferences
     // IMPORTANT: Requires User JWT. Four push opt-ins, all on by default.
-    // NOTE: The mass reminder switch is now honoured by the reminder push job; the other three are still stored only.
+    // NOTE: The mass reminder switch is honoured by the push job; the rest are stored only.
     [HttpGet("me/notification-preferences")]
     public Task<IActionResult> GetNotificationPreferences(CancellationToken ct) =>
         ExecuteAsync(nameof(GetNotificationPreferences), async () =>
@@ -182,7 +188,7 @@ public class UsersController(
         });
 
     // NOTE: PUT /api/v1/users/me/notification-preferences
-    // IMPORTANT: Requires User JWT. Partial update - send only the switches that moved; the rest keep their stored value.
+    // IMPORTANT: Requires User JWT. Send only the switches that moved.
     // NOTE: Returns the full stored set so the settings screen can rebind from the response.
     [HttpPut("me/notification-preferences")]
     public Task<IActionResult> UpdateNotificationPreferences([FromBody] UpdateNotificationPreferencesRequestDto request, CancellationToken ct) =>
@@ -195,10 +201,12 @@ public class UsersController(
         });
 
     // NOTE: DELETE /api/v1/users/me
-    // IMPORTANT: Requires User JWT *and* the account's own credential - password for Email accounts, a fresh ID token for Google.
-    // IMPORTANT: Permanent. The user row and everything hanging off it (devices, follows, reminders, tokens, notification log) is removed, and the profile photo blob with it.
-    // NOTE: Rate limited like the auth endpoints - it verifies a password, so it is a brute-force target.
-    // NOTE: 401 on a wrong credential or the wrong provider, 400 when the confirmation field for that provider is missing.
+    // IMPORTANT: Requires User JWT and the account own credential.
+    // NOTE: Password for Email accounts, a fresh ID token for Google.
+    // IMPORTANT: Permanent. The user row and every child row is removed.
+    // NOTE: The profile photo blob goes with it.
+    // NOTE: Rate limited like auth - it verifies a password, so it is a brute-force target.
+    // NOTE: 401 on a wrong credential or provider, 400 when the confirmation is missing.
     [EnableRateLimiting("auth")]
     [HttpDelete("me")]
     public Task<IActionResult> DeleteMe([FromBody] DeleteAccountRequestDto request, CancellationToken ct) =>
@@ -211,7 +219,8 @@ public class UsersController(
         }, request.Provider);
 
     // NOTE: PUT /api/v1/users/me/device-token
-    // IMPORTANT: Requires User JWT. Idempotent upsert keyed by the globally-unique device token - re-registering the same token (even from another account) re-points it to the caller.
+    // IMPORTANT: Requires User JWT. Idempotent upsert keyed by the device token.
+    // NOTE: Re-registering a token from another account re-points it to the caller.
     [HttpPut("me/device-token")]
     public Task<IActionResult> RegisterDeviceToken([FromBody] RegisterDeviceTokenRequestDto request, CancellationToken ct) =>
         ExecuteAsync(nameof(RegisterDeviceToken), async () =>
@@ -223,7 +232,7 @@ public class UsersController(
         }, request.Platform);
 
     // NOTE: DELETE /api/v1/users/me/device-token
-    // IMPORTANT: Requires User JWT. Idempotent - removing an unknown token (or one owned by another user) is a no-op.
+    // IMPORTANT: Requires User JWT. Removing an unknown or foreign token is a no-op.
     [HttpDelete("me/device-token")]
     public Task<IActionResult> RemoveDeviceToken([FromBody] RemoveDeviceTokenRequestDto request, CancellationToken ct) =>
         ExecuteAsync(nameof(RemoveDeviceToken), async () =>

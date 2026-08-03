@@ -13,13 +13,14 @@ public class AzureBlobUrlSigner(BlobServiceClient blobServiceClient, IOptions<Bl
     private readonly BlobServiceClient _blobServiceClient = blobServiceClient;
     private readonly BlobStorageSettings _settings = options.Value;
 
-    // IMPORTANT: With a managed identity there is no account key, so a service SAS is impossible - every read URL is a
-    // IMPORTANT:  user delegation SAS. The delegation key is an Entra round trip, so it is cached rather than fetched per URL.
+    // IMPORTANT: Managed identity means no account key, so a service SAS is impossible.
+    // IMPORTANT: Every read URL is a user delegation SAS instead.
+    // NOTE: The delegation key is an Entra round trip, so it is cached rather than fetched per URL.
     private UserDelegationKey? _delegationKey;
     private DateTimeOffset _delegationKeyExpiresOn;
     private readonly SemaphoreSlim _delegationKeyLock = new(1, 1);
 
-    // NOTE: Renewed well before it lapses, so a request never races the expiry of a key it just took.
+    // NOTE: Renewed early so a request never races the expiry of a key it just took.
     private static readonly TimeSpan DelegationKeyLifetime = TimeSpan.FromHours(6);
     private static readonly TimeSpan DelegationKeyRenewMargin = TimeSpan.FromMinutes(30);
 
@@ -34,7 +35,7 @@ public class AzureBlobUrlSigner(BlobServiceClient blobServiceClient, IOptions<Bl
             BlobName = blobName,
             Resource = "b",
 
-            // NOTE: Backdated a little so a client whose clock runs slow does not reject a URL that is already valid.
+            // NOTE: Backdated so a client with a slow clock does not reject a valid URL.
             StartsOn = DateTimeOffset.UtcNow.AddMinutes(-5),
             ExpiresOn = DateTimeOffset.UtcNow.AddMinutes(_settings.SasMinutes)
         };
@@ -53,11 +54,12 @@ public class AzureBlobUrlSigner(BlobServiceClient blobServiceClient, IOptions<Bl
         if (!Uri.TryCreate(storedUrl, UriKind.Absolute, out var uri))
             return storedUrl;
 
-        // IMPORTANT: Only re-sign what lives on our own account. Anything else is someone else's URL and is returned as-is.
+        // IMPORTANT: Only re-sign what lives on our own account.
+        // NOTE: Anything else is someone else's URL and is returned untouched.
         if (!uri.Host.Equals(_blobServiceClient.Uri.Host, StringComparison.OrdinalIgnoreCase))
             return storedUrl;
 
-        // NOTE: The path is /{container}/{blob…}. The blob part may itself contain slashes, so only the first is a separator.
+        // NOTE: Path is /{container}/{blob}. The blob may contain slashes, so only the first splits.
         var path = uri.AbsolutePath.TrimStart('/');
         var separator = path.IndexOf('/');
         if (separator <= 0 || separator == path.Length - 1)

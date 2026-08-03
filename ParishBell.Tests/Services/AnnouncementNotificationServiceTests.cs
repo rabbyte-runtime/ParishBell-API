@@ -27,7 +27,7 @@ public class AnnouncementNotificationServiceTests
             .ReturnsAsync(new List<PendingNotification>());
     }
 
-    // IMPORTANT: TEST 1 - Enqueue writes one localized log row per follower, tagged Announcement + reference id
+    // IMPORTANT: TEST 1 - Enqueue writes one localized log row per follower
     [Fact]
     public async Task Enqueue_CreatesLocalizedLogPerFollower()
     {

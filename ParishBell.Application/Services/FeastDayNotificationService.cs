@@ -30,11 +30,11 @@ public class FeastDayNotificationService(
 
     private async Task<int> EnqueueTodaysFeastsAsync(CancellationToken ct)
     {
-        // IMPORTANT: A feast is a calendar date at the church, so "today" has to be the church's today, not the server's.
+        // IMPORTANT: A feast is a calendar date at the church, so today means the church today.
         var localNow = DateTime.UtcNow.AddMinutes(_settings.LocalUtcOffsetMinutes);
         var today = DateOnly.FromDateTime(localNow);
 
-        // NOTE: Nothing goes out before the configured hour, and nothing once the day is too far gone to be worth saying.
+        // NOTE: Nothing goes out before the send hour, or once the day is too far gone.
         var sendFrom = today.ToDateTime(new TimeOnly(_settings.SendAtLocalHour, 0));
         if (localNow < sendFrom || localNow > sendFrom.AddHours(_settings.LookbackHours))
             return 0;
@@ -74,7 +74,7 @@ public class FeastDayNotificationService(
         return enqueued;
     }
 
-    // NOTE: A fixed feast falls on its own date; a recurring one on its month/day in whatever year we are in.
+    // NOTE: A fixed feast falls on its own date, a recurring one on its month and day.
     private static bool FallsOn(DueFeastDay feast, DateOnly date)
     {
         if (!feast.IsRecurringAnnually)
@@ -83,8 +83,8 @@ public class FeastDayNotificationService(
         return feast.Month == date.Month && feast.Day == date.Day;
     }
 
-    // NOTE: The recipient's own language, then English, then any translation that exists - a feast with none still
-    //       gets a usable push rather than being silently dropped.
+    // NOTE: The recipient language, then English, then any translation that exists.
+    // NOTE: A feast with none still gets a usable push rather than being dropped.
     private (string Title, string Body) BuildContent(Dictionary<Guid, (string Title, string? Description)> translations, FeastDayRecipient recipient)
     {
         if (translations.TryGetValue(recipient.LanguageId, out var own))
@@ -111,7 +111,8 @@ public class FeastDayNotificationService(
         {
             var result = await _pushService.SendToUserAsync(item.UserId, ToNotification(item), ct);
 
-            // NOTE: Done when a device received it, or there was nothing to deliver. Only a hard failure is retried.
+            // NOTE: Done when a device got it, or there was nothing to deliver.
+            // NOTE: Only a hard failure is retried.
             if (result.SuccessCount > 0 || result.FailureCount == 0)
                 delivered.Add(item.NotificationId);
         }
@@ -124,8 +125,8 @@ public class FeastDayNotificationService(
     {
         var data = new Dictionary<string, string> { ["type"] = "feastDay" };
 
-        // NOTE: Each is optional because the pinned feast could be removed between queueing and delivery. The client
-        //       routes on date alone, so a payload missing the ids still opens the right day.
+        // NOTE: Each is optional - the pinned feast may vanish between queueing and delivery.
+        // NOTE: The client routes on date alone, so a thin payload still opens the right day.
         if (item.CalendarId is not null)
             data["calendarId"] = item.CalendarId.Value.ToString();
 

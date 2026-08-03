@@ -76,7 +76,8 @@ public class UserRepository(ParishBellDbContext dbContext) : IUserRepository
         }
         catch (DbUpdateException)
         {
-            // NOTE: The caller already checked the address was free. A failure here means a concurrent request claimed it first - uq_app_users_email is the only constraint this write can break.
+            // NOTE: The caller already checked the address was free, so a race claimed it first.
+            // NOTE: uq_app_users_email is the only constraint this write can break.
             throw new ConflictException(MessageCodes.AuthEmailAlreadyExists);
         }
     }

@@ -22,7 +22,7 @@ public class AnnouncementServiceTests
         _mockRepo = new Mock<IAnnouncementRepository>();
         _mockFollowRepo = new Mock<ILocationFollowRepository>();
 
-        // NOTE: Re-signing is exercised in its own tests; here it hands the URL straight back so assertions stay readable.
+        // NOTE: Re-signing has its own tests; here it hands the URL straight back.
         _mockUrlSigner = new Mock<IBlobUrlSigner>();
         _mockUrlSigner
             .Setup(s => s.ResignAsync(It.IsAny<string?>(), It.IsAny<CancellationToken>()))

@@ -13,9 +13,8 @@ public class UserDeviceRepository(ParishBellDbContext dbContext) : IUserDeviceRe
     {
         var now = DateTime.UtcNow;
 
-        // NOTE: device_token is globally unique. If the token already exists, refresh it and re-point
-        //       it to this user — the same physical device may have been reinstalled or signed into a
-        //       different account since it last registered.
+        // NOTE: device_token is globally unique, so an existing token is re-pointed at this user.
+        // NOTE: The same device may have been reinstalled or signed into another account since.
         var existing = await _dbContext.UserDevices
             .FirstOrDefaultAsync(d => d.DeviceToken == token, ct);
 
@@ -47,8 +46,8 @@ public class UserDeviceRepository(ParishBellDbContext dbContext) : IUserDeviceRe
         }
         catch (DbUpdateException)
         {
-            // NOTE: A concurrent request inserted the same unique device_token between the check and the save.
-            //       Drop our failed insert, then update the row that won the race so the end state is ours.
+            // NOTE: A concurrent request inserted the same device_token before this save.
+            // NOTE: Drop our failed insert, then update the row that won the race.
             _dbContext.Entry(device).State = EntityState.Detached;
 
             var raced = await _dbContext.UserDevices
@@ -99,8 +98,8 @@ public class UserDeviceRepository(ParishBellDbContext dbContext) : IUserDeviceRe
     {
         if (tokens.Count == 0) return;
 
-        // NOTE: These tokens are dead everywhere (FCM reported them unregistered/invalid), so the delete
-        //       is not scoped to a user. ExecuteDelete issues a single set-based DELETE.
+        // NOTE: FCM reported these unregistered, so the delete is not scoped to a user.
+        // NOTE: ExecuteDelete issues a single set-based DELETE.
         await _dbContext.UserDevices
             .Where(d => tokens.Contains(d.DeviceToken))
             .ExecuteDeleteAsync(ct);

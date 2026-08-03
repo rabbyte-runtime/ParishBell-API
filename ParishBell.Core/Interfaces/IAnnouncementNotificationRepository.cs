@@ -8,7 +8,7 @@ public interface IAnnouncementNotificationRepository
     // NOTE: Active, unexpired announcements created since the cutoff, with their per-language text.
     Task<IReadOnlyList<PendingAnnouncement>> GetAnnouncementsToNotifyAsync(DateTime createdAfterUtc, DateTime nowUtc, CancellationToken ct = default);
 
-    // NOTE: Active followers of the location that don't yet have a notifications_log row for this announcement.
+    // NOTE: Followers with no notifications_log row for this announcement yet.
     Task<IReadOnlyList<NotificationRecipient>> GetFollowersWithoutLogAsync(Guid announcementId, Guid locationId, CancellationToken ct = default);
 
     // NOTE: Bulk-inserts queued (is_sent=false) notification rows.

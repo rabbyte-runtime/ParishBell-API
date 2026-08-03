@@ -53,10 +53,10 @@ builder.Services.AddScoped<IMessageCache, MessageCache>();
 // NOTE: Register email service
 builder.Services.AddScoped<IEmailService, SendGridEmailService>();
 
-// NOTE: Azure Blob Storage — profile photos. Containers are split by purpose; this one is private, so reads go
-//       out as short-lived user delegation SAS URLs.
-// IMPORTANT: No account key anywhere. DefaultAzureCredential uses the App Service managed identity in Azure and the
-//            developer's `az login` locally — both need Storage Blob Data Contributor on the account, or SAS minting fails.
+// NOTE: Azure Blob Storage for profile photos. Containers are split by purpose.
+// NOTE: This one is private, so reads go out as short-lived user delegation SAS URLs.
+// IMPORTANT: No account key anywhere - DefaultAzureCredential does the work.
+// IMPORTANT: The identity needs Storage Blob Data Contributor, or SAS minting fails.
 builder.Services.Configure<BlobStorageSettings>(builder.Configuration.GetSection("BlobStorage"));
 builder.Services.AddSingleton(sp =>
 {
@@ -71,8 +71,8 @@ builder.Services.Configure<FcmSettings>(builder.Configuration.GetSection("Fcm"))
 builder.Services.AddSingleton<FirebaseAppInitializer>();
 builder.Services.AddScoped<IPushNotificationService, FcmPushNotificationService>();
 
-// NOTE: Announcement push fan-out — background outbox over notifications_log. Announcements are
-//       authored in the admin backend (shared DB); this job notifies each location's followers.
+// NOTE: Announcement push fan-out - a background outbox over notifications_log.
+// NOTE: Announcements are authored in the admin backend; this job notifies followers.
 var announcementPushSettings = builder.Configuration.GetSection("AnnouncementPush").Get<AnnouncementPushSettings>()
     ?? new AnnouncementPushSettings();
 builder.Services.AddSingleton(announcementPushSettings);
@@ -80,10 +80,10 @@ builder.Services.AddScoped<IAnnouncementNotificationRepository, AnnouncementNoti
 builder.Services.AddScoped<IAnnouncementNotificationService, AnnouncementNotificationService>();
 builder.Services.AddHostedService<AnnouncementPushJob>();
 
-// NOTE: Mass reminder fan-out — the same outbox pattern, keyed by (user, schedule, occurrence_date) so a weekly
-//       reminder fires once per week rather than once per poll.
-// IMPORTANT: LocalUtcOffsetMinutes must match the churches' wall clock (330 = Sri Lanka). mass_time carries no
-//            timezone, so a wrong offset here sends every reminder at the wrong hour.
+// NOTE: Mass reminder fan-out - the same outbox pattern as announcements.
+// NOTE: Keyed by (user, schedule, occurrence_date) so it fires weekly, not per poll.
+// IMPORTANT: LocalUtcOffsetMinutes must match the church wall clock (330 = Sri Lanka).
+// IMPORTANT: mass_time carries no timezone, so a wrong offset sends every reminder late.
 var massReminderPushSettings = builder.Configuration.GetSection("MassReminderPush").Get<MassReminderPushSettings>()
     ?? new MassReminderPushSettings();
 builder.Services.AddSingleton(massReminderPushSettings);
@@ -91,8 +91,8 @@ builder.Services.AddScoped<IMassReminderNotificationRepository, MassReminderNoti
 builder.Services.AddScoped<IMassReminderNotificationService, MassReminderNotificationService>();
 builder.Services.AddHostedService<MassReminderPushJob>();
 
-// NOTE: Feast day fan-out — one push per follower on the morning of a feast their church has pinned.
-// NOTE: Keyed by (user, location_feast_day, occurrence_date), so an annually recurring feast is notified once a year.
+// NOTE: Feast day fan-out - one push per follower on the morning of a pinned feast.
+// NOTE: Keyed by (user, feast, date), so a recurring feast notifies once a year.
 var feastDayPushSettings = builder.Configuration.GetSection("FeastDayPush").Get<FeastDayPushSettings>()
     ?? new FeastDayPushSettings();
 builder.Services.AddSingleton(feastDayPushSettings);
@@ -176,9 +176,9 @@ builder.Services.AddRateLimiter(options =>
                 QueueLimit = 0,
             }));
 
-    // NOTE: Photo uploads are the only large writes a user can make, and each one costs a decode plus a blob write.
-    // IMPORTANT: Partitioned by user rather than IP - a shared connection (parish wifi, mobile CGNAT) would otherwise
-    // IMPORTANT:  let one person's uploads exhaust everyone else's allowance.
+    // NOTE: Photo uploads are the only large writes, costing a decode plus a blob write.
+    // IMPORTANT: Partitioned by user, not IP.
+    // NOTE: On shared wifi or CGNAT one person would otherwise exhaust the allowance.
     options.AddPolicy("upload", context =>
         RateLimitPartition.GetFixedWindowLimiter(
             partitionKey: context.User.FindFirst(ClaimTypes.NameIdentifier)?.Value

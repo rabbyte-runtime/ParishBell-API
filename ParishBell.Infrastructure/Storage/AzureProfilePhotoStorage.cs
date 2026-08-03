@@ -30,7 +30,8 @@ public class AzureProfilePhotoStorage(
         var blobName = BlobNameFor(userId);
         var blobClient = ContainerClient().GetBlobClient(blobName);
 
-        // NOTE: One blob per user, overwritten in place - a change replaces the photo instead of leaving the old one behind.
+        // NOTE: One blob per user, overwritten in place.
+        // NOTE: A change replaces the photo instead of orphaning the old one.
         await blobClient.UploadAsync(
             normalised,
             new BlobUploadOptions { HttpHeaders = new BlobHttpHeaders { ContentType = "image/jpeg" } },
@@ -48,13 +49,13 @@ public class AzureProfilePhotoStorage(
     public Task<string> GetReadUrlAsync(string blobName, CancellationToken ct = default) =>
         _urlSigner.SignAsync(_settings.ProfilePhotosContainer, blobName, ct);
 
-    // NOTE: Crops to a centred square and re-encodes as JPEG. Besides the size win, decoding and re-encoding means we
-    // NOTE:  serve bytes we produced ourselves - EXIF and anything hidden behind an image extension do not survive.
+    // NOTE: Crops to a centred square and re-encodes as JPEG.
+    // NOTE: Re-encoding means we serve bytes we produced, so EXIF and hidden payloads do not survive.
     private async Task<Stream> NormaliseAsync(Stream content, CancellationToken ct)
     {
-        // IMPORTANT: Identify reads only the header, so the pixel count is known before anything is allocated. Decoding
-        // IMPORTANT:  first would defeat the point - the whole risk is an image whose compressed size hides its real one.
-        // NOTE: The header read has to be rewound before the decode, and an unbuffered upload stream may not seek.
+        // IMPORTANT: Identify reads only the header, so pixel count is known before anything is allocated.
+        // IMPORTANT: Decoding first would defeat the point - compressed size hides the real one.
+        // NOTE: The header read must be rewound before the decode, and an upload stream may not seek.
         if (!content.CanSeek)
         {
             var buffered = new MemoryStream();
@@ -87,15 +88,16 @@ public class AzureProfilePhotoStorage(
         }
         catch (Exception ex) when (ex is UnknownImageFormatException or InvalidImageContentException)
         {
-            // IMPORTANT: The real content check - a client can claim any content type, but only a decodable image gets this far.
+            // IMPORTANT: The real content check - a client can claim any content type.
+            // NOTE: Only a decodable image gets past here.
             throw new BadRequestException(MessageCodes.ValidationPhotoInvalidType);
         }
 
         using (image)
         {
             image.Mutate(x => x
-                // IMPORTANT: Phone cameras record rotation in EXIF rather than in the pixels. Applying it before the
-                // IMPORTANT:  crop is what stops portrait shots arriving sideways - and the tag is dropped on re-encode.
+                // IMPORTANT: Phone cameras record rotation in EXIF, not in the pixels.
+                // IMPORTANT: Applying it before the crop stops portrait shots arriving sideways.
                 .AutoOrient()
                 .Resize(new ResizeOptions
                 {

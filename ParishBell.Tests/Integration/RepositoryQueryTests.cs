@@ -6,8 +6,8 @@ using ParishBell.Infrastructure.Repositories;
 
 namespace ParishBell.Tests.Integration;
 
-// NOTE: One seeded world shared by every test here - a church with a Sunday mass, a follower who has set a reminder
-// NOTE:  on it, and one notification of each user-facing type. Enough to exercise the projections end to end.
+// NOTE: One seeded world shared by every test here.
+// NOTE: A church with a Sunday mass, a follower with a reminder, and one of each notification.
 [Collection(nameof(PostgresCollection))]
 public class RepositoryQueryTests(PostgresFixture fixture) : IAsyncLifetime
 {
@@ -177,7 +177,7 @@ public class RepositoryQueryTests(PostgresFixture fixture) : IAsyncLifetime
 
     public Task DisposeAsync() => Task.CompletedTask;
 
-    // IMPORTANT: TEST 1 - The inbox projection is the densest in the codebase; this proves it translates and resolves
+    // IMPORTANT: TEST 1 - The densest projection in the codebase; proves it translates
     [Fact]
     public async Task UserNotificationRepository_GetForUser_TranslatesAndResolvesEveryReference()
     {
@@ -222,7 +222,7 @@ public class RepositoryQueryTests(PostgresFixture fixture) : IAsyncLifetime
         Assert.Equal(list.Count(r => !r.IsRead), count);
     }
 
-    // IMPORTANT: TEST 3 - The followed-churches mass query carries labels, church names and the caller's reminder
+    // IMPORTANT: TEST 3 - The mass query carries labels, church names and the reminder
     [Fact]
     public async Task MassScheduleRepository_GetForFollowedLocations_ReturnsPatternWithReminder()
     {
@@ -284,7 +284,7 @@ public class RepositoryQueryTests(PostgresFixture fixture) : IAsyncLifetime
         Assert.True(row.IsActive);
     }
 
-    // IMPORTANT: TEST 6 - Cancelling by location updates through a navigation property, which SQL has to express
+    // IMPORTANT: TEST 6 - Cancelling by location updates through a navigation property
     [Fact]
     public async Task MassReminderRepository_DisableForLocation_SwitchesThemOff()
     {
@@ -339,7 +339,7 @@ public class RepositoryQueryTests(PostgresFixture fixture) : IAsyncLifetime
         Assert.Contains((_userId, _scheduleId, new DateOnly(2026, 8, 9)), already);
     }
 
-    // IMPORTANT: TEST 9 - Pending delivery resolves the church through the schedule and carries the occurrence date
+    // IMPORTANT: TEST 9 - Pending delivery resolves the church through the schedule
     [Fact]
     public async Task MassReminderNotificationRepository_GetPending_ResolvesLocationThroughSchedule()
     {
@@ -428,7 +428,7 @@ public class RepositoryQueryTests(PostgresFixture fixture) : IAsyncLifetime
         Assert.Empty(after);
     }
 
-    // IMPORTANT: TEST 12 - Fetching one announcement by id applies the same active/unexpired rules as the list
+    // IMPORTANT: TEST 12 - Fetching one announcement applies the same rules as the list
     [Fact]
     public async Task AnnouncementRepository_GetAnnouncement_RespectsExpiry()
     {

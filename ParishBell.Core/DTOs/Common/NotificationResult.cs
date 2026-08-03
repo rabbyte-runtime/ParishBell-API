@@ -1,6 +1,7 @@
 namespace ParishBell.Core.DTOs.Common;
 
-// NOTE: A row of the user's inbox. LocationId and CalendarId are resolved from the polymorphic reference_id by the repository, since notifications_log stores neither.
+// NOTE: A row of the user inbox.
+// NOTE: LocationId and CalendarId are resolved from the polymorphic reference_id.
 public record NotificationResult
 {
     public Guid NotificationId { get; init; }
@@ -22,12 +23,12 @@ public record NotificationResult
     // NOTE: The day the row is about, as recorded when it was queued. Authoritative when present.
     public DateOnly? OccurrenceDate { get; init; }
 
-    // NOTE: Mass reminders only - the weekly slot the reminder fired for. Used to reconstruct the date for rows
-    //       written before occurrence_date existed, or by anything that does not set it.
+    // NOTE: Mass reminders only - the weekly slot the reminder fired for.
+    // NOTE: Reconstructs the date for rows written before occurrence_date existed.
     public int? MassDayOfWeek { get; init; }
     public TimeOnly? MassTime { get; init; }
 
-    // NOTE: Feast days only - the calendar entry's own date, fixed or recurring, resolved against SentAt's year.
+    // NOTE: Feast days only - the entry own date, resolved against the SentAt year.
     public DateOnly? FeastSpecificDate { get; init; }
     public int? FeastMonth { get; init; }
     public int? FeastDayOfMonth { get; init; }

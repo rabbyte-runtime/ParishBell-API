@@ -29,7 +29,7 @@ public class EventRepository(ParishBellDbContext dbContext) : IEventRepository
         var englishId = langs.FirstOrDefault(l => l.LanguageCode == DefaultLanguageCode)?.LanguageId;
         var requestedId = langs.FirstOrDefault(l => l.LanguageCode == languageCode)?.LanguageId ?? englishId;
 
-        // NOTE: Published active events — idx_ev_published covers LocationId + IsPublished + IsActive + EventDate
+        // NOTE: Published active events - idx_ev_published covers the whole predicate.
         var eventsQuery = _dbContext.Events
             .AsNoTracking()
             .Where(e => e.LocationId == locationId && e.IsPublished && e.IsActive);
@@ -38,7 +38,7 @@ public class EventRepository(ParishBellDbContext dbContext) : IEventRepository
         if (toDate.HasValue) eventsQuery = eventsQuery.Where(e => e.EventDate <= toDate.Value);
 
         // NOTE: Ascending by date so upcoming events come first naturally.
-        // ThenBy EventId keeps pagination pages stable and non-overlapping.
+        // NOTE: ThenBy EventId keeps pagination pages stable and non-overlapping.
         IQueryable<Core.Entities.Event> orderedQuery = eventsQuery
             .OrderBy(e => e.EventDate)
             .ThenBy(e => e.EventId);
@@ -102,8 +102,8 @@ public class EventRepository(ParishBellDbContext dbContext) : IEventRepository
         var englishId = langs.FirstOrDefault(l => l.LanguageCode == DefaultLanguageCode)?.LanguageId;
         var requestedId = langs.FirstOrDefault(l => l.LanguageCode == languageCode)?.LanguageId ?? englishId;
 
-        // IMPORTANT: The same visibility rules as the lists - a draft, a soft-deleted event, or one at a hidden church
-        // IMPORTANT:  must not become reachable just because someone holds its id.
+        // IMPORTANT: The same visibility rules as the lists.
+        // NOTE: A draft or hidden event must not become reachable just by holding its id.
         var ev = await _dbContext.Events
             .AsNoTracking()
             .Where(e => e.EventId == eventId && e.IsPublished && e.IsActive
@@ -178,7 +178,7 @@ public class EventRepository(ParishBellDbContext dbContext) : IEventRepository
             return [];
 
         // NOTE: Published active events across all followed locations within the month window.
-        // NOTE:  Ordered by date, then start time (all-day events first), then EventId for a stable order.
+        // NOTE: Ordered by date, then start time, then EventId for a stable order.
         var events = await _dbContext.Events
             .AsNoTracking()
             .Where(e => followedLocationIds.Contains(e.LocationId) && e.IsPublished && e.IsActive

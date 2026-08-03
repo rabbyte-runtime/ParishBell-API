@@ -1,6 +1,6 @@
 namespace ParishBell.Core.DTOs.Notifications;
 
-// NOTE: An active reminder with everything needed to decide whether it has come due and to word the push.
+// NOTE: An active reminder, with everything needed to judge due-ness and word it.
 // NOTE: LocationName and Label are already resolved in the user's own language by the repository.
 public class DueMassReminder
 {
@@ -26,7 +26,8 @@ public class DueMassReminder
     public DateOnly? ValidTo { get; set; }
 }
 
-// NOTE: One reminder matched to the specific day it fell due on - the pair that notifications_log is deduplicated by.
+// NOTE: One reminder matched to the day it fell due on.
+// NOTE: That pair is what notifications_log is deduplicated by.
 public record DueMassOccurrence(DueMassReminder Reminder, DateOnly OccurrenceDate);
 
 public record MassReminderPushResult(int Enqueued, int Delivered, int Failed);

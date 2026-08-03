@@ -80,7 +80,7 @@ public class LocationService(ILocationRepository locationRepository) : ILocation
                 IsPrimary = i.IsPrimary,
                 SortOrder = i.SortOrder
             })],
-            // NOTE: Expanded with the same helper the followed-churches calendar uses, so both surfaces agree on the dates.
+            // NOTE: Same helper the calendar uses, so both surfaces agree on the dates.
             MassSchedules = MassOccurrenceExpander.Expand(result.Schedules, massFrom, massTo),
             MassFrom = massFrom.ToString("yyyy-MM-dd"),
             MassTo = massTo.ToString("yyyy-MM-dd"),

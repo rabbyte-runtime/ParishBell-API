@@ -161,7 +161,7 @@ public class UserNotificationServiceTests
         Assert.Equal("2026-08-15", Assert.Single(page.Items).Date);
     }
 
-    // IMPORTANT: TEST 3d - A January feast notified in late December belongs to the year starting, not the one ending
+    // IMPORTANT: TEST 3d - A January feast notified in December belongs to the year starting
     [Fact]
     public async Task GetNotifications_RecurringFeastAcrossNewYear_RollsForward()
     {
@@ -282,7 +282,7 @@ public class UserNotificationServiceTests
         Assert.Equal("2026-08-05", Assert.Single(page.Items).Date);
     }
 
-    // IMPORTANT: TEST 4d - A mass reminder whose schedule has since gone reports no date rather than a wrong one
+    // IMPORTANT: TEST 4d - A reminder whose schedule is gone reports no date, not a wrong one
     [Fact]
     public async Task GetNotifications_MassReminderWithoutSlot_LeavesDateNull()
     {
@@ -298,7 +298,7 @@ public class UserNotificationServiceTests
         Assert.NotNull(dto.ScheduleId);
     }
 
-    // IMPORTANT: TEST 5 - Default paging is page 1 / 20, and one extra row is fetched to probe for a next page
+    // IMPORTANT: TEST 5 - Default paging is page 1 / 20, with one extra row as a probe
     [Fact]
     public async Task GetNotifications_WithoutPagingArgs_UsesDefaults()
     {

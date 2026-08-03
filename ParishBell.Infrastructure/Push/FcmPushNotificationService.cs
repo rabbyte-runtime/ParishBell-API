@@ -59,10 +59,9 @@ public class FcmPushNotificationService(
 
         foreach (var batch in tokens.Chunk(MaxTokensPerBatch))
         {
-            // IMPORTANT: We address by FCM registration token (what the Android client's getToken()/onNewToken
-            //            returns and what user_devices stores). FirebaseAdmin 3.6.0 marks Tokens obsolete in
-            //            favour of Firebase Installation IDs, but FIDs are a different identifier and migrating
-            //            to them is out of scope for this token-based integration — hence the local suppression.
+            // IMPORTANT: We address by FCM registration token, which is what user_devices stores.
+            // NOTE: FirebaseAdmin 3.6.0 marks Tokens obsolete in favour of Firebase Installation IDs.
+            // NOTE: FIDs are a different identifier, so migrating is out of scope - hence the suppression.
 #pragma warning disable CS0618
             var message = new MulticastMessage
             {
@@ -79,8 +78,8 @@ public class FcmPushNotificationService(
             }
             catch (FirebaseMessagingException ex)
             {
-                // NOTE: A whole-batch failure (auth/config/transport). Count the batch as failed and move on;
-                //       one bad batch must not sink the rest of the fan-out.
+                // NOTE: A whole-batch failure (auth/config/transport). Count it failed and move on.
+                // NOTE: One bad batch must not sink the rest of the fan-out.
                 _logger.LogError(ex, "FCM multicast send failed for a batch of {Count} token(s).", batch.Length);
                 result.FailureCount += batch.Length;
                 continue;

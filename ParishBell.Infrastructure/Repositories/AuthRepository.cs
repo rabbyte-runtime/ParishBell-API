@@ -10,7 +10,7 @@ public class AuthRepository(ParishBellDbContext db) : IAuthRepository
 {
     private readonly ParishBellDbContext _dbContext = db;
 
-    // NOTE: Check if the email is already in the AppUsers table in DB and return true for existing email, and false if the email doesn't exist
+    // NOTE: True when the email already exists in app_users.
     public async Task<bool> EmailExistsAsync(string email, CancellationToken ct = default) => await _dbContext.AppUsers.AnyAsync(u => u.Email == email.ToLower(), ct);
 
     // NOTE: Add a new mobile app user to AppUsers

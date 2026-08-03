@@ -1,7 +1,7 @@
 namespace ParishBell.Core.DTOs.Location;
 
-// NOTE: The event detail screen reached by id - from a push carrying eventId, or a parishbell://events/{id} share link (§5.8).
-// NOTE: Same fields as EventDto plus the church, because nothing around the screen supplies it when opened cold.
+// NOTE: The event detail screen reached by id, from a push or a share link.
+// NOTE: Same fields as EventDto plus the church, since nothing supplies it when cold.
 public class EventDetailDto
 {
     public Guid EventId { get; set; }
@@ -20,6 +20,6 @@ public class EventDetailDto
     public string Title { get; set; } = default!;
     public string? Description { get; set; }
 
-    // NOTE: Photos exist only on past events (§5.2), so an upcoming one comes back with an empty gallery.
+    // NOTE: Photos exist only on past events, so upcoming ones have an empty gallery.
     public List<EventImageDto> Images { get; set; } = [];
 }

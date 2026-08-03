@@ -14,10 +14,10 @@ public class LocationDto
     // NOTE: Populated only when the caller supplies userLat/userLng. Null otherwise.
     public double? DistanceKm { get; set; }
 
-    // NOTE: "#RRGGBB" for this church's map pin, carried from its type so the map needs no lookup table of its own.
+    // NOTE: "#RRGGBB" for the map pin, carried from the type so the map needs no lookup.
     public string? PinColorHex { get; set; }
 
-    // NOTE: Whether the caller follows this church, so the list and detail sheet render Join/Leave without a second call.
-    // IMPORTANT: This endpoint is public - an anonymous caller always gets false, which is not the same as "unknown".
+    // NOTE: Whether the caller follows this church, so Join/Leave needs no second call.
+    // IMPORTANT: Public endpoint - anonymous callers get false, which is not "unknown".
     public bool IsFollowing { get; set; }
 }

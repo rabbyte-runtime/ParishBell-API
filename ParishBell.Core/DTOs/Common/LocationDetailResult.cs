@@ -13,14 +13,14 @@ public record LocationDetailResult(
     string? Address,
     List<LocationImageResult> Images,
 
-    // NOTE: Weekly patterns, not dates - the service expands them, exactly as the followed-churches calendar does.
+    // NOTE: Weekly patterns, not dates - the service expands them like the calendar does.
     List<MassSchedulePatternResult> Schedules,
     List<FeastDayResult> FeastDays,
 
-    // NOTE: Always false for an anonymous caller - the endpoint is public, so "not following" and "nobody asked" look the same.
+    // NOTE: Always false for an anonymous caller, since the endpoint is public.
     bool IsFollowing,
 
-    // NOTE: The map pin colour of this church's type, carried through so the detail sheet matches the pin the user tapped.
+    // NOTE: The pin colour of this church type, so the sheet matches the tapped pin.
     string? PinColorHex
 );
 

@@ -77,7 +77,7 @@ public class UserNotificationService(IUserNotificationRepository notificationRep
             ScheduleId = type == NotificationType.MassReminder ? result.ReferenceId : null,
             CalendarId = result.CalendarId,
 
-            // NOTE: Without this a mass-reminder row has nowhere to go but the church, and a feast row nowhere at all.
+            // NOTE: Without this a mass row lands on the church and a feast row nowhere at all.
             Date = ResolveDate(type, result)?.ToString("yyyy-MM-dd")
         };
     }
@@ -89,11 +89,11 @@ public class UserNotificationService(IUserNotificationRepository notificationRep
         NotificationType.MassReminder => ResolveMassDate(result),
         NotificationType.FeastDay => ResolveFeastDate(result),
 
-        // NOTE: Events and announcements carry a typed id the client fetches instead - a date would add nothing.
+        // NOTE: Events and announcements carry a typed id instead, so a date adds nothing.
         _ => null
     };
 
-    // NOTE: The push fires shortly *before* the mass, so the occurrence is the first matching weekday at or after it was sent.
+    // NOTE: The push fires before the mass, so take the first matching weekday from SentAt.
     private static DateOnly? ResolveMassDate(NotificationResult result)
     {
         if (result.MassDayOfWeek is not { } dayOfWeek || result.MassTime is not { } massTime)
@@ -101,18 +101,18 @@ public class UserNotificationService(IUserNotificationRepository notificationRep
 
         var sentDate = DateOnly.FromDateTime(result.SentAt);
 
-        // NOTE: DayOfWeek is 0=Sunday..6=Saturday in the DB, which is exactly System.DayOfWeek's own numbering.
+        // NOTE: DayOfWeek is 0=Sunday..6=Saturday, matching System.DayOfWeek.
         var shift = ((dayOfWeek - (int)sentDate.DayOfWeek) + 7) % 7;
         var date = sentDate.AddDays(shift);
 
-        // NOTE: Landing on the send day only counts if the mass had not already started - otherwise it is next week's.
+        // NOTE: The send day counts only if the mass had not already started.
         if (shift == 0 && massTime < TimeOnly.FromDateTime(result.SentAt))
             date = date.AddDays(7);
 
         return date;
     }
 
-    // NOTE: A fixed feast carries its own date; a recurring one is a month/day that has to be placed in a year.
+    // NOTE: A fixed feast carries its date, a recurring one needs placing in a year.
     private static DateOnly? ResolveFeastDate(NotificationResult result)
     {
         if (result.FeastSpecificDate is { } specificDate)
@@ -124,14 +124,14 @@ public class UserNotificationService(IUserNotificationRepository notificationRep
         var sentDate = DateOnly.FromDateTime(result.SentAt);
         var resolved = BuildDate(sentDate.Year, month, day);
 
-        // NOTE: A feast notified in late December for a January date belongs to the next year, not the one just ending.
+        // NOTE: A January feast notified in late December belongs to the year starting.
         if (resolved is { } valid && valid < sentDate.AddDays(-1))
             return BuildDate(sentDate.Year + 1, month, day);
 
         return resolved;
     }
 
-    // NOTE: Null rather than throwing on a day that does not exist that year - Feb 29 outside a leap year.
+    // NOTE: Null rather than throwing on Feb 29 outside a leap year.
     private static DateOnly? BuildDate(int year, int month, int day)
     {
         if (month is < 1 or > 12 || day < 1 || day > DateTime.DaysInMonth(year, month))
@@ -140,6 +140,6 @@ public class UserNotificationService(IUserNotificationRepository notificationRep
         return new DateOnly(year, month, day);
     }
 
-    // NOTE: DB timestamps are stored as UTC - emit an explicit "Z" so the client parses them unambiguously.
+    // NOTE: DB timestamps are UTC - emit an explicit "Z" so the client parses them exactly.
     private static string FormatUtc(DateTime dt) => DateTime.SpecifyKind(dt, DateTimeKind.Utc).ToString("yyyy-MM-ddTHH:mm:ss'Z'");
 }

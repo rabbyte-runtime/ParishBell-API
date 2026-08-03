@@ -16,11 +16,11 @@ public class LocationDetailDto
     public string? Website { get; set; }
     public List<LocationImageDto> Images { get; set; } = [];
 
-    // NOTE: Dated occurrences over the requested window, identical in shape to GET /api/v1/mass/schedule - one concept, one model.
-    // NOTE: Defaults to the coming week, so the profile's mass tab can render "what's on this week" without projecting dates itself.
+    // NOTE: Dated occurrences, identical in shape to /mass/schedule - one concept, one model.
+    // NOTE: Defaults to the coming week so the mass tab needs no date projection.
     public List<MassOccurrenceDto> MassSchedules { get; set; } = [];
 
-    // NOTE: The window the occurrences above were expanded over, echoed back so the client knows what it is looking at.
+    // NOTE: The window the occurrences were expanded over, echoed back to the client.
     public string MassFrom { get; set; } = default!;
     public string MassTo { get; set; } = default!;
     public List<LocationFeastDayDto> FeastDays { get; set; } = [];
@@ -28,8 +28,8 @@ public class LocationDetailDto
     // NOTE: "#RRGGBB" for this church's map pin, carried from its type.
     public string? PinColorHex { get; set; }
 
-    // NOTE: Whether the caller follows this church, so the detail sheet renders Join/Leave without a second call.
-    // IMPORTANT: This endpoint is public - an anonymous caller always gets false, which is not the same as "unknown".
+    // NOTE: Whether the caller follows this church, so Join/Leave needs no second call.
+    // IMPORTANT: Public endpoint - anonymous callers get false, which is not "unknown".
     public bool IsFollowing { get; set; }
 }
 

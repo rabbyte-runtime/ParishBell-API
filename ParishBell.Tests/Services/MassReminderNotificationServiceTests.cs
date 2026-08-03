@@ -54,7 +54,7 @@ public class MassReminderNotificationServiceTests
             new MassReminderPushSettings { LocalUtcOffsetMinutes = OffsetMinutes, LookbackMinutes = 15 });
     }
 
-    // NOTE: Builds a reminder whose fire time sits `minutesAgo` in the past relative to now, at the church's wall clock.
+    // NOTE: Builds a reminder whose fire time sits minutesAgo in the past, church-local.
     private DueMassReminder MakeReminderDueMinutesAgo(int minutesAgo, int minutesBefore = 30)
     {
         var localNow = DateTime.UtcNow.AddMinutes(OffsetMinutes);

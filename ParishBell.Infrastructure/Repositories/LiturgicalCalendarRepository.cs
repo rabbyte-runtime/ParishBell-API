@@ -26,9 +26,9 @@ public class LiturgicalCalendarRepository(ParishBellDbContext dbContext) : ILitu
         var englishId = langs.FirstOrDefault(l => l.LanguageCode == DefaultLanguageCode)?.LanguageId;
         var requestedId = langs.FirstOrDefault(l => l.LanguageCode == languageCode)?.LanguageId ?? englishId;
 
-        // NOTE: Two kinds of entries land in a given month/year:
-        //   - Recurring annual entries whose month matches (they occur every year) — idx_lc_recurring
-        //   - One-off entries whose specific_date falls in the requested month AND year — idx_lc_specific_date
+        // NOTE: Two kinds of entries land in a given month/year.
+        // NOTE: Recurring annual entries whose month matches — idx_lc_recurring.
+        // NOTE: One-off entries whose specific_date falls in that month and year — idx_lc_specific_date.
         var entries = await _dbContext.LiturgicalCalendars
             .AsNoTracking()
             .Where(c =>

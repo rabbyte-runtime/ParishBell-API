@@ -14,7 +14,7 @@ public class FeastDayNotificationRepository(ParishBellDbContext dbContext) : IFe
 
     public async Task<List<DueFeastDay>> GetPinnedFeastDaysAsync(CancellationToken ct = default)
     {
-        // NOTE: Only feasts a live church has pinned - a global calendar entry nobody pinned has no audience here.
+        // NOTE: Only feasts a live church pinned - an unpinned entry has no audience.
         return await _dbContext.LocationFeastDays
             .AsNoTracking()
             .Where(f => f.Location.IsApproved && f.Location.IsActive && !f.Location.IsRejected)
@@ -35,7 +35,7 @@ public class FeastDayNotificationRepository(ParishBellDbContext dbContext) : IFe
         Guid locationFeastDayId, Guid locationId, DateOnly occurrenceDate, CancellationToken ct = default)
     {
         // NOTE: Anti-join on (user, feast, date) so re-polling the same day queues nothing twice.
-        // IMPORTANT: The occurrence date is part of the key - an annually recurring feast is the same reference_id every year.
+        // IMPORTANT: The occurrence date is part of the key - a recurring feast reuses its reference_id.
         return await _dbContext.UserFollowedLocations
             .AsNoTracking()
             .Where(f => f.LocationId == locationId
@@ -83,7 +83,7 @@ public class FeastDayNotificationRepository(ParishBellDbContext dbContext) : IFe
                 Body = n.Body,
                 ReferenceId = n.ReferenceId,
 
-                // NOTE: reference_id is the location_feast_days row, which carries both the church and the calendar entry.
+                // NOTE: reference_id is the location_feast_days row, which carries church and calendar.
                 LocationId = _dbContext.LocationFeastDays
                     .Where(f => f.LocationFeastDayId == n.ReferenceId)
                     .Select(f => (Guid?)f.LocationId)

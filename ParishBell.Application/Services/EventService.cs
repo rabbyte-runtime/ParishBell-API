@@ -11,7 +11,7 @@ public class EventService(IEventRepository eventRepository) : IEventService
 
     public async Task<EventDetailDto> GetEventByIdAsync(Guid eventId, string languageCode, CancellationToken ct = default)
     {
-        // IMPORTANT: A link can outlive the event it points at, so "unpublished", "deleted" and "never existed" all land here as one 404.
+        // IMPORTANT: A link can outlive its event, so gone and never-existed are one 404.
         var result = await _eventRepository.GetEventByIdAsync(eventId, languageCode, ct)
             ?? throw new NotFoundException(MessageCodes.EventNotFound);
 

@@ -38,7 +38,7 @@ public class MassReminderService(IMassReminderRepository reminderRepository) : I
 
     public async Task<MassReminderDto> SetReminderAsync(Guid userId, SetMassReminderRequestDto request, CancellationToken ct = default)
     {
-        // IMPORTANT: Checked before the write so a stale client cannot hang a reminder off a mass that has since been removed or hidden.
+        // IMPORTANT: Checked first so a stale client cannot target a removed or hidden mass.
         if (!await _reminderRepository.IsScheduleRemindableAsync(request.ScheduleId, ct))
             throw new NotFoundException(MessageCodes.MassScheduleNotFound);
 

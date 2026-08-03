@@ -18,8 +18,8 @@ public class MassReminderNotificationRepository(ParishBellDbContext dbContext) :
         if (daysOfWeek.Count == 0)
             return [];
 
-        // IMPORTANT: Every condition here is a reason a push must not go out - a cancelled reminder, a removed mass,
-        // IMPORTANT:  a hidden church, a deactivated account, or a user who turned mass reminders off in settings.
+        // IMPORTANT: Every condition here is a reason a push must not go out.
+        // NOTE: Cancelled reminder, removed mass, hidden church, dead account, or opted out.
         var reminders = await _dbContext.UserMassReminders
             .AsNoTracking()
             .Where(r => r.IsActive
@@ -57,7 +57,7 @@ public class MassReminderNotificationRepository(ParishBellDbContext dbContext) :
             .Select(l => (Guid?)l.LanguageId)
             .FirstOrDefaultAsync(ct);
 
-        // NOTE: Each recipient's own language plus English, so the fallback is available without a second round trip.
+        // NOTE: Each recipient language plus English, so fallback needs no second round trip.
         var labels = await _dbContext.MassScheduleTranslations
             .AsNoTracking()
             .Where(t => scheduleIds.Contains(t.ScheduleId) && (languageIds.Contains(t.LanguageId) || t.LanguageId == englishId))

@@ -57,12 +57,17 @@ TestResult.xml
 nunit-*.xml
 
 # C# Dev Kit
-/ParishBell.API/ParishBell.API.csproj.lscache
-/ParishBell.Application/ParishBell.Application.csproj.lscache
-/ParishBell.Infrastructure/ParishBell.Infrastructure.csproj.lscache
-/ParishBell.Core/ParishBell.Core.csproj.lscache
-/ParishBell.Tests/ParishBell.Tests.csproj.lscache
+*.csproj.lscache
 
 # VS Code
 .vscode/
-.claude/settings.json
+
+# Claude Code
+.claude/
+CLAUDE.local.md
+
+# Editors / OS
+*.swp
+*~
+.DS_Store
+Thumbs.db

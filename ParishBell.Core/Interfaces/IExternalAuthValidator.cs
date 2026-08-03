@@ -21,4 +21,8 @@ public class ExternalAuthResult
     public string Email { get; set; } = string.Empty;
     public string FullName { get; set; } = string.Empty;
     public bool EmailVerified { get; set; }
+
+    // NOTE: The provider account photo, refreshed at every login because URLs rotate.
+    // NOTE: Null when the account has none.
+    public string? PictureUrl { get; set; }
 }

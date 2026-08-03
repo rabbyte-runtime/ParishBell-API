@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using ParishBell.Core.Configuration;
 using ParishBell.Core.Constants;
@@ -19,8 +20,12 @@ public partial class AuthService(
     IOptions<PasswordResetSettings> passwordResetOptions,
     IMessageCache messageCache,
     IEnumerable<IExternalAuthValidator> externalAuthValidators,
-    IUserDeviceRepository userDeviceRepository) : IAuthService
+    IUserDeviceRepository userDeviceRepository,
+    IUserRepository userRepository,
+    ILogger<AuthService> logger) : IAuthService
 {
+    private readonly ILogger<AuthService> _logger = logger;
+
     // NOTE: Dependencies for authentication
     private readonly IAuthRepository _authRepository = authRepository;
     private readonly IPasswordHasher _passwordHasher = passwordHasher;
@@ -30,6 +35,9 @@ public partial class AuthService(
     private readonly PasswordResetSettings _passwordResetSettings = passwordResetOptions.Value;
     private readonly IMessageCache _messageCache = messageCache;
     private readonly IUserDeviceRepository _userDeviceRepository = userDeviceRepository;
+
+    // NOTE: Only keeps the stored provider photo current at login.
+    private readonly IUserRepository _userRepository = userRepository;
 
     // NOTE: All registered external auth validators (Google only as of now)
     private readonly IEnumerable<IExternalAuthValidator> _externalAuthValidators = externalAuthValidators;
@@ -140,6 +148,10 @@ public partial class AuthService(
             PasswordHash = null, // IMPORTANT: Social users have no passwords
             AuthProvider = (short)provider,
             AuthProviderId = verifiedInfo.ProviderUserId,
+
+            // NOTE: The provider's account photo, shown until the user uploads one of their own.
+            ProfileImageUrl = verifiedInfo.PictureUrl,
+
             PreferredLanguage = request.PreferredLanguage,
             IsActive = true,
             CreatedAt = DateTime.UtcNow
@@ -256,7 +268,14 @@ public partial class AuthService(
 
         // IMPORTANT: User exists for this Google account - return it
         if (user is not null)
+        {
+            // NOTE: Provider photo URLs rotate, so this refreshes on every login.
+            // NOTE: An uploaded photo wins when the profile is read, so nothing custom is lost.
+            if (user.ProfileImageUrl != verifiedInfo.PictureUrl)
+                await _userRepository.UpdateProviderPhotoUrlAsync(user.UserId, verifiedInfo.PictureUrl, ct);
+
             return user;
+        }
 
         // NOTE: No social account exists - check if the email is registered with another provider
         var existingByEmail = await _authRepository.GetUserByEmailAsync(verifiedInfo.Email, ct);
@@ -320,13 +339,20 @@ public partial class AuthService(
 
         // IMPORTANT: Don't reveal whether token exists
         // NOTE: If token is invalid or already revoked, just return success silently
-        if (storedToken is null || storedToken.IsRevoked) return;
+        if (storedToken is null || storedToken.IsRevoked)
+        {
+            // IMPORTANT: Silent to the caller, but not silent in the logs.
+            // NOTE: Signing out with a token already rotated by a refresh leaves the session live.
+            // NOTE: Without this line that bug is invisible from both ends.
+            _logger.LogWarning("Logout presented a refresh token that is unknown or already revoked; no session was ended.");
+            return;
+        }
 
         // NOTE: Revoke this single refresh token
         await _authRepository.RevokeRefreshTokenAsync(storedToken.RefreshTokenId, ct);
 
         // NOTE: Prune the signed-out device's push token when supplied, scoped to this token's owner
-        //       so it stops receiving notifications. No-op if it isn't registered to this user.
+        // NOTE: No-op when the token is not registered to this user.
         if (!string.IsNullOrWhiteSpace(request.DeviceToken))
             await _userDeviceRepository.RemoveByTokenAsync(storedToken.UserId, request.DeviceToken.Trim(), ct);
     }

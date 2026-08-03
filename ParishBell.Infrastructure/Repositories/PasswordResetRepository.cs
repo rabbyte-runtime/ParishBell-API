@@ -1,6 +1,3 @@
-// ============================================================
-// FILE: ParishBell.Infrastructure/Repositories/PasswordResetRepository.cs
-// ============================================================
 using Microsoft.EntityFrameworkCore;
 using ParishBell.Core.Entities;
 using ParishBell.Core.Interfaces;

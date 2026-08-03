@@ -19,7 +19,8 @@ public class LocationTypeService(ILocationTypeRepository locationTypeRepository)
             LocationTypeId = r.LocationTypeId,
             LocationTypeCode = r.LocationTypeCode,
             SortOrder = r.SortOrder,
-            Name = r.Name
+            Name = r.Name,
+            PinColorHex = r.PinColorHex
         }).ToList();
 
         if (dtos.Count < 0)

@@ -10,7 +10,7 @@ public class LocationService(ILocationRepository locationRepository) : ILocation
     private readonly ILocationRepository _locationRepository = locationRepository;
 
     public async Task<LocationPageDto> GetActiveLocationsAsync(string languageCode, decimal? minLat, decimal? maxLat,
-    decimal? minLng, decimal? maxLng, string? q, decimal? userLat, decimal? userLng, int? page, int? pageSize, CancellationToken ct = default)
+    decimal? minLng, decimal? maxLng, string? q, decimal? userLat, decimal? userLng, int? page, int? pageSize, Guid? userId = null, CancellationToken ct = default)
     {
         bool paginate = page.HasValue;
         int resolvedPage = page ?? 1;
@@ -22,7 +22,7 @@ public class LocationService(ILocationRepository locationRepository) : ILocation
 
         var results = await _locationRepository.GetActiveLocationsAsync(
             languageCode, minLat, maxLat, minLng, maxLng, q,
-            userLat, userLng, skip, take, ct);
+            userLat, userLng, skip, take, userId, ct);
 
         bool hasMore = paginate && results.Count > resolvedPageSize;
         if (hasMore) results = [.. results.Take(resolvedPageSize)];
@@ -42,7 +42,9 @@ public class LocationService(ILocationRepository locationRepository) : ILocation
             Website = r.Website,
             DistanceKm = withDistance
                 ? Math.Round(Haversine(userLat!.Value, userLng!.Value, r.Latitude, r.Longitude), 2)
-                : null
+                : null,
+            IsFollowing = r.IsFollowing,
+            PinColorHex = r.PinColorHex
         }).ToList();
 
         return new LocationPageDto
@@ -54,9 +56,9 @@ public class LocationService(ILocationRepository locationRepository) : ILocation
         };
     }
 
-    public async Task<LocationDetailDto> GetLocationByIdAsync(Guid locationId, string languageCode, CancellationToken ct = default)
+    public async Task<LocationDetailDto> GetLocationByIdAsync(Guid locationId, string languageCode, DateOnly massFrom, DateOnly massTo, Guid? userId = null, CancellationToken ct = default)
     {
-        var result = await _locationRepository.GetLocationByIdAsync(locationId, languageCode, ct)
+        var result = await _locationRepository.GetLocationByIdAsync(locationId, languageCode, massFrom, massTo, userId, ct)
             ?? throw new NotFoundException(MessageCodes.LocationNotFound);
 
         return new LocationDetailDto
@@ -78,16 +80,10 @@ public class LocationService(ILocationRepository locationRepository) : ILocation
                 IsPrimary = i.IsPrimary,
                 SortOrder = i.SortOrder
             })],
-            MassSchedules = [.. result.Schedules.Select(s => new MassScheduleDto
-            {
-                ScheduleId = s.ScheduleId,
-                DayOfWeek = s.DayOfWeek,
-                MassTime = s.MassTime.ToString("HH:mm"),
-                IsSpecial = s.IsSpecial,
-                ValidFrom = s.ValidFrom?.ToString("yyyy-MM-dd"),
-                ValidTo = s.ValidTo?.ToString("yyyy-MM-dd"),
-                Label = s.Label
-            })],
+            // NOTE: Same helper the calendar uses, so both surfaces agree on the dates.
+            MassSchedules = MassOccurrenceExpander.Expand(result.Schedules, massFrom, massTo),
+            MassFrom = massFrom.ToString("yyyy-MM-dd"),
+            MassTo = massTo.ToString("yyyy-MM-dd"),
             FeastDays = [.. result.FeastDays.Select(f => new LocationFeastDayDto
             {
                 LocationFeastDayId = f.LocationFeastDayId,
@@ -99,7 +95,9 @@ public class LocationService(ILocationRepository locationRepository) : ILocation
                 Month = f.Month,
                 Day = f.Day,
                 SpecificDate = f.SpecificDate?.ToString("yyyy-MM-dd")
-            })]
+            })],
+            IsFollowing = result.IsFollowing,
+            PinColorHex = result.PinColorHex
         };
     }
 
@@ -130,7 +128,9 @@ public class LocationService(ILocationRepository locationRepository) : ILocation
             Email = r.Email,
             Website = r.Website,
             // NOTE: No distance — the followed list isn't location-relative.
-            DistanceKm = null
+            DistanceKm = null,
+            IsFollowing = r.IsFollowing,
+            PinColorHex = r.PinColorHex
         }).ToList();
 
         return new LocationPageDto

@@ -1,9 +1,13 @@
+using System.Security.Claims;
 using System.Text;
 using System.Threading.RateLimiting;
+using Azure.Identity;
+using Azure.Storage.Blobs;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using ParishBell.API.Middleware;
 using ParishBell.Application.Services;
@@ -17,6 +21,7 @@ using ParishBell.Infrastructure.Email;
 using ParishBell.Infrastructure.Push;
 using ParishBell.Infrastructure.Repositories;
 using ParishBell.Infrastructure.Security;
+using ParishBell.Infrastructure.Storage;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -48,19 +53,52 @@ builder.Services.AddScoped<IMessageCache, MessageCache>();
 // NOTE: Register email service
 builder.Services.AddScoped<IEmailService, SendGridEmailService>();
 
+// NOTE: Azure Blob Storage for profile photos. Containers are split by purpose.
+// NOTE: This one is private, so reads go out as short-lived user delegation SAS URLs.
+// IMPORTANT: No account key anywhere - DefaultAzureCredential does the work.
+// IMPORTANT: The identity needs Storage Blob Data Contributor, or SAS minting fails.
+builder.Services.Configure<BlobStorageSettings>(builder.Configuration.GetSection("BlobStorage"));
+builder.Services.AddSingleton(sp =>
+{
+    var settings = sp.GetRequiredService<IOptions<BlobStorageSettings>>().Value;
+    return new BlobServiceClient(new Uri(settings.AccountUrl), new DefaultAzureCredential());
+});
+builder.Services.AddSingleton<IBlobUrlSigner, AzureBlobUrlSigner>();
+builder.Services.AddSingleton<IProfilePhotoStorage, AzureProfilePhotoStorage>();
+
 // NOTE: Firebase Cloud Messaging (push notifications) — credentials come from user-secrets
 builder.Services.Configure<FcmSettings>(builder.Configuration.GetSection("Fcm"));
 builder.Services.AddSingleton<FirebaseAppInitializer>();
 builder.Services.AddScoped<IPushNotificationService, FcmPushNotificationService>();
 
-// NOTE: Announcement push fan-out — background outbox over notifications_log. Announcements are
-//       authored in the admin backend (shared DB); this job notifies each location's followers.
+// NOTE: Announcement push fan-out - a background outbox over notifications_log.
+// NOTE: Announcements are authored in the admin backend; this job notifies followers.
 var announcementPushSettings = builder.Configuration.GetSection("AnnouncementPush").Get<AnnouncementPushSettings>()
     ?? new AnnouncementPushSettings();
 builder.Services.AddSingleton(announcementPushSettings);
 builder.Services.AddScoped<IAnnouncementNotificationRepository, AnnouncementNotificationRepository>();
 builder.Services.AddScoped<IAnnouncementNotificationService, AnnouncementNotificationService>();
 builder.Services.AddHostedService<AnnouncementPushJob>();
+
+// NOTE: Mass reminder fan-out - the same outbox pattern as announcements.
+// NOTE: Keyed by (user, schedule, occurrence_date) so it fires weekly, not per poll.
+// IMPORTANT: LocalUtcOffsetMinutes must match the church wall clock (330 = Sri Lanka).
+// IMPORTANT: mass_time carries no timezone, so a wrong offset sends every reminder late.
+var massReminderPushSettings = builder.Configuration.GetSection("MassReminderPush").Get<MassReminderPushSettings>()
+    ?? new MassReminderPushSettings();
+builder.Services.AddSingleton(massReminderPushSettings);
+builder.Services.AddScoped<IMassReminderNotificationRepository, MassReminderNotificationRepository>();
+builder.Services.AddScoped<IMassReminderNotificationService, MassReminderNotificationService>();
+builder.Services.AddHostedService<MassReminderPushJob>();
+
+// NOTE: Feast day fan-out - one push per follower on the morning of a pinned feast.
+// NOTE: Keyed by (user, feast, date), so a recurring feast notifies once a year.
+var feastDayPushSettings = builder.Configuration.GetSection("FeastDayPush").Get<FeastDayPushSettings>()
+    ?? new FeastDayPushSettings();
+builder.Services.AddSingleton(feastDayPushSettings);
+builder.Services.AddScoped<IFeastDayNotificationRepository, FeastDayNotificationRepository>();
+builder.Services.AddScoped<IFeastDayNotificationService, FeastDayNotificationService>();
+builder.Services.AddHostedService<FeastDayPushJob>();
 
 // NOTE: Add hosted services
 builder.Services.AddHostedService<MessageCacheStartupService>();
@@ -134,6 +172,22 @@ builder.Services.AddRateLimiter(options =>
             {
                 PermitLimit = 10,
                 Window = TimeSpan.FromMinutes(1),
+                QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                QueueLimit = 0,
+            }));
+
+    // NOTE: Photo uploads are the only large writes, costing a decode plus a blob write.
+    // IMPORTANT: Partitioned by user, not IP.
+    // NOTE: On shared wifi or CGNAT one person would otherwise exhaust the allowance.
+    options.AddPolicy("upload", context =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: context.User.FindFirst(ClaimTypes.NameIdentifier)?.Value
+                       ?? context.Connection.RemoteIpAddress?.ToString()
+                       ?? "unknown",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 10,
+                Window = TimeSpan.FromMinutes(5),
                 QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
                 QueueLimit = 0,
             }));

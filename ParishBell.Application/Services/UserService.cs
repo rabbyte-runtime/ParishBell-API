@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using ParishBell.Core.Constants;
 using ParishBell.Core.DTOs.Common;
 using ParishBell.Core.DTOs.User;
@@ -13,10 +14,14 @@ public class UserService(
     ILanguageRepository languageRepository,
     IAuthRepository authRepository,
     IPasswordHasher passwordHasher,
+    IProfilePhotoStorage photoStorage,
+    ILogger<UserService> logger,
     IEnumerable<IExternalAuthValidator> externalAuthValidators) : IUserService
 {
     private readonly IUserRepository _userRepository = userRepository;
     private readonly ILanguageRepository _languageRepository = languageRepository;
+    private readonly IProfilePhotoStorage _photoStorage = photoStorage;
+    private readonly ILogger<UserService> _logger = logger;
 
     // NOTE: Deletion re-checks the sign-up credential, so it needs the auth-side pieces too.
     private readonly IAuthRepository _authRepository = authRepository;
@@ -26,7 +31,37 @@ public class UserService(
     public async Task<UserProfileDto> GetProfileAsync(Guid userId, CancellationToken ct = default)
     {
         var profile = await LoadActiveProfileAsync(userId, ct);
-        return MapToDto(profile);
+        return await MapToDtoAsync(profile, ct);
+    }
+
+    public async Task<UserProfileDto> UpdateProfilePhotoAsync(Guid userId, Stream content, CancellationToken ct = default)
+    {
+        // IMPORTANT: Loaded first so a deactivated or deleted account cannot push bytes into the container.
+        await LoadActiveProfileAsync(userId, ct);
+
+        // NOTE: The blob name comes from the user id, so this overwrites any previous upload.
+        var blobName = await _photoStorage.UploadAsync(userId, content, ct);
+        await _userRepository.UpdateProfilePhotoBlobAsync(userId, blobName, ct);
+
+        var updated = await LoadActiveProfileAsync(userId, ct);
+        return await MapToDtoAsync(updated, ct);
+    }
+
+    public async Task<UserProfileDto> RemoveProfilePhotoAsync(Guid userId, CancellationToken ct = default)
+    {
+        var profile = await LoadActiveProfileAsync(userId, ct);
+
+        if (profile.ProfilePhotoBlob is not null)
+        {
+            // NOTE: Blob first - a failure leaves the row pointing at a photo that still exists.
+            // NOTE: Clearing the column first would strand the blob with nothing referencing it.
+            await _photoStorage.DeleteAsync(profile.ProfilePhotoBlob, ct);
+            await _userRepository.UpdateProfilePhotoBlobAsync(userId, null, ct);
+        }
+
+        // NOTE: Removing the upload falls back to the provider photo, else the app draws initials.
+        var updated = await LoadActiveProfileAsync(userId, ct);
+        return await MapToDtoAsync(updated, ct);
     }
 
     public async Task<UserProfileDto> UpdateProfileAsync(Guid userId, UpdateProfileRequestDto request, CancellationToken ct = default)
@@ -37,15 +72,15 @@ public class UserService(
         var email = await ResolveEmailAsync(userId, current, request, ct);
         var preferredLanguage = await ResolvePreferredLanguageAsync(current, request, ct);
 
-        // NOTE: Everything supplied already matches what's stored - skip the write and echo the profile back.
+        // NOTE: Everything supplied already matches - skip the write and echo the profile back.
         if (fullName is null && email is null && preferredLanguage is null)
-            return MapToDto(current);
+            return await MapToDtoAsync(current, ct);
 
         await _userRepository.UpdateProfileAsync(userId, fullName, email, preferredLanguage, ct);
 
-        // NOTE: Re-read so the response carries the stored values, including the language names of a new selection.
+        // NOTE: Re-read so the response carries stored values, including new language names.
         var updated = await LoadActiveProfileAsync(userId, ct);
-        return MapToDto(updated);
+        return await MapToDtoAsync(updated, ct);
     }
 
     public async Task<NotificationPreferencesDto> GetNotificationPreferencesAsync(Guid userId, CancellationToken ct = default)
@@ -79,14 +114,15 @@ public class UserService(
 
     public async Task DeleteAccountAsync(Guid userId, DeleteAccountRequestDto request, CancellationToken ct = default)
     {
-        // NOTE: The entity, not the profile projection - the credential check needs the password hash and provider id.
+        // NOTE: The entity, not the projection - the check needs the hash and provider id.
         var user = await _authRepository.GetUserByIdAsync(userId, ct)
             ?? throw new NotFoundException(MessageCodes.GeneralNotFound);
 
         if (!user.IsActive)
             throw new UnauthorizedException(MessageCodes.AuthAccountInactive);
 
-        // IMPORTANT: Confirm with the credential this account actually signed up with - an email user cannot delete by presenting a Google token, and vice versa.
+        // IMPORTANT: Confirm with the credential this account actually signed up with.
+        // NOTE: An email user cannot delete by presenting a Google token, or the reverse.
         if (request.Provider != (AuthProvider)user.AuthProvider)
             throw new UnauthorizedException(MessageCodes.AuthWrongProvider);
 
@@ -104,6 +140,22 @@ public class UserService(
         }
 
         await _userRepository.DeleteAccountAsync(userId, ct);
+
+        // IMPORTANT: The blob is outside the database, so the transaction above cannot reach it.
+        // NOTE: Without this, a deleted account photo survives in the container indefinitely.
+        // NOTE: Runs after the row delete and is swallowed - the account is already gone.
+        // NOTE: A leftover blob is recoverable; a false "deletion failed" is not.
+        if (user.ProfilePhotoBlob is not null)
+        {
+            try
+            {
+                await _photoStorage.DeleteAsync(user.ProfilePhotoBlob, ct);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Deleted account {UserId} left its profile photo blob {BlobName} behind.", userId, user.ProfilePhotoBlob);
+            }
+        }
     }
 
     // NOTE: Email accounts confirm with their current password.
@@ -128,7 +180,8 @@ public class UserService(
         // NOTE: Verifies signature, expiry, audience and email_verified.
         var verifiedInfo = await validator.ValidateAsync(request.IdToken, ct);
 
-        // IMPORTANT: A valid token still has to belong to *this* account - otherwise anyone with a Google account and a stolen access token could delete someone else's.
+        // IMPORTANT: A valid token must belong to this account.
+        // NOTE: Otherwise a stolen access token plus any Google account could delete it.
         if (!string.Equals(verifiedInfo.ProviderUserId, user.AuthProviderId, StringComparison.Ordinal))
             throw new UnauthorizedException(MessageCodes.AuthInvalidCredentials);
     }
@@ -157,7 +210,8 @@ public class UserService(
 
         if (email == current.Email) return null;
 
-        // IMPORTANT: Social accounts are keyed to the provider's subject and the email belongs to that provider. Changing it here would silently desync the two, so the change is refused outright.
+        // IMPORTANT: Social accounts are keyed to the provider subject, which owns the email.
+        // NOTE: Changing it here would silently desync the two, so it is refused outright.
         if (current.AuthProvider != (short)AuthProvider.Email)
             throw new ForbiddenException(MessageCodes.UserEmailChangeNotAllowed);
 
@@ -176,14 +230,14 @@ public class UserService(
 
         if (languageId == current.PreferredLanguage) return null;
 
-        // IMPORTANT: Reject unknown or retired languages here — otherwise the FK fails as an unexplained 500.
+        // IMPORTANT: Reject unknown languages here, or the FK fails as an unexplained 500.
         if (!await _languageRepository.IsActiveLanguageAsync(languageId, ct))
             throw new BadRequestException(MessageCodes.ValidationPreferredLanguageInvalid);
 
         return languageId;
     }
 
-    // NOTE: The token outlives the row it points at - a deleted account still presents a valid JWT until it expires.
+    // NOTE: The token outlives its row - a deleted account still presents a valid JWT.
     private async Task<UserProfileResult> LoadActiveProfileAsync(Guid userId, CancellationToken ct)
     {
         var profile = await _userRepository.GetProfileAsync(userId, ct)
@@ -196,12 +250,24 @@ public class UserService(
         return profile;
     }
 
-    private static UserProfileDto MapToDto(UserProfileResult profile) => new()
+    // NOTE: The client sees one photo field and never learns which source won.
+    // NOTE: Precedence is upload, then provider photo, then null so the app draws initials.
+    private async Task<UserProfileDto> MapToDtoAsync(UserProfileResult profile, CancellationToken ct)
+    {
+        var photoUrl = profile.ProfilePhotoBlob is not null
+            // IMPORTANT: Minted per response and short-lived - never cache or persist it.
+            ? await _photoStorage.GetReadUrlAsync(profile.ProfilePhotoBlob, ct)
+            : profile.ProfileImageUrl;
+
+        return MapToDto(profile, photoUrl);
+    }
+
+    private static UserProfileDto MapToDto(UserProfileResult profile, string? photoUrl) => new()
     {
         UserId = profile.UserId,
         FullName = profile.FullName,
         Email = profile.Email,
-        ProfileImageUrl = profile.ProfileImageUrl,
+        ProfileImageUrl = photoUrl,
         AuthProvider = (AuthProvider)profile.AuthProvider,
         PreferredLanguage = profile.PreferredLanguage,
         PreferredLanguageCode = profile.PreferredLanguageCode,
@@ -219,6 +285,6 @@ public class UserService(
         FeastDays = profile.NotifyFeastDays
     };
 
-    // NOTE: DB timestamps are stored as UTC - emit an explicit "Z" so the client parses them unambiguously.
+    // NOTE: DB timestamps are UTC - emit an explicit "Z" so the client parses them exactly.
     private static string FormatUtc(DateTime dt) => DateTime.SpecifyKind(dt, DateTimeKind.Utc).ToString("yyyy-MM-ddTHH:mm:ss'Z'");
 }

@@ -5,9 +5,12 @@ using ParishBell.Core.Interfaces;
 
 namespace ParishBell.Application.Services;
 
-public class LocationFollowService(ILocationFollowRepository followRepository) : ILocationFollowService
+public class LocationFollowService(ILocationFollowRepository followRepository, IMassReminderRepository reminderRepository) : ILocationFollowService
 {
     private readonly ILocationFollowRepository _followRepository = followRepository;
+
+    // NOTE: Unfollowing must reach reminders too - they have no link to follow state.
+    private readonly IMassReminderRepository _reminderRepository = reminderRepository;
 
     public async Task<FollowStatusDto> GetFollowStatusAsync(Guid userId, Guid locationId, CancellationToken ct = default)
     {
@@ -28,5 +31,10 @@ public class LocationFollowService(ILocationFollowRepository followRepository) :
     {
         // NOTE: Idempotent - no location existence check needed; removing a missing follow is a no-op.
         await _followRepository.RemoveFollowAsync(userId, locationId, ct);
+
+        // IMPORTANT: Reminders survive an unfollow and would keep pushing from a church left behind.
+        // NOTE: An alert the user can no longer trace to anything on screen.
+        // NOTE: Cancelled, not deleted, so the reminders list still shows them for one-tap revival.
+        await _reminderRepository.DisableForLocationAsync(userId, locationId, ct);
     }
 }

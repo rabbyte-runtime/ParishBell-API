@@ -2,7 +2,7 @@ namespace ParishBell.Core.Interfaces;
 
 public interface ILocationFollowRepository
 {
-    // NOTE: True only when the location exists and is approved + active (a user can follow live churches only).
+    // NOTE: True only when the location exists and is live - follows need a live church.
     Task<bool> LocationIsFollowableAsync(Guid locationId, CancellationToken ct = default);
 
     // NOTE: True when the user currently follows the location.

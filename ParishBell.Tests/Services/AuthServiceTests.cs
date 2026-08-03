@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Moq;
 using ParishBell.Application.Services;
@@ -20,6 +21,7 @@ public class AuthServiceTests
     private readonly Mock<IPasswordResetRepository> _mockPasswordResetRepo;
     private readonly Mock<IEmailService> _mockEmailService;
     private readonly Mock<IUserDeviceRepository> _mockDeviceRepo;
+    private readonly Mock<IUserRepository> _mockUserRepo;
     private readonly AuthService _authService;
 
     private readonly Guid _testLanguageId = Guid.NewGuid();
@@ -33,6 +35,9 @@ public class AuthServiceTests
         _mockPasswordResetRepo = new Mock<IPasswordResetRepository>();
         _mockEmailService = new Mock<IEmailService>();
         _mockDeviceRepo = new Mock<IUserDeviceRepository>();
+
+        // NOTE: Only used to keep the stored Google photo current at login.
+        _mockUserRepo = new Mock<IUserRepository>();
 
         // NOTE: Mock Google validator
         _mockGoogleValidator = new Mock<IExternalAuthValidator>();
@@ -48,7 +53,9 @@ public class AuthServiceTests
             Options.Create(new PasswordResetSettings { CodeExpiryMinutes = 15, MaxRequestsPerHour = 3 }),
             Mock.Of<IMessageCache>(),
             [_mockGoogleValidator.Object],
-            _mockDeviceRepo.Object
+            _mockDeviceRepo.Object,
+            _mockUserRepo.Object,
+            NullLogger<AuthService>.Instance
         );
 
         // NOTE: Set up default JWT mocks

@@ -3,7 +3,8 @@ using ParishBell.Core.Enums;
 
 namespace ParishBell.Core.DTOs.User;
 
-// IMPORTANT: Deletion is irreversible, so the caller re-proves who they are with the same credential they signed up with.
+// IMPORTANT: Deletion is irreversible, so the caller re-proves who they are.
+// NOTE: They must use the same credential they signed up with.
 public class DeleteAccountRequestDto
 {
     // NOTE: Provider numeric value - 1=Email, 2=Google, 3=Apple. Must match the account's own provider.

@@ -12,21 +12,19 @@ public record LocationDetailResult(
     string? Description,
     string? Address,
     List<LocationImageResult> Images,
-    List<MassScheduleResult> Schedules,
-    List<FeastDayResult> FeastDays
+
+    // NOTE: Weekly patterns, not dates - the service expands them like the calendar does.
+    List<MassSchedulePatternResult> Schedules,
+    List<FeastDayResult> FeastDays,
+
+    // NOTE: Always false for an anonymous caller, since the endpoint is public.
+    bool IsFollowing,
+
+    // NOTE: The pin colour of this church type, so the sheet matches the tapped pin.
+    string? PinColorHex
 );
 
 public record LocationImageResult(Guid ImageId, string ImageUrl, bool IsPrimary, int SortOrder);
-
-public record MassScheduleResult(
-    Guid ScheduleId,
-    int DayOfWeek,
-    TimeOnly MassTime,
-    bool IsSpecial,
-    DateOnly? ValidFrom,
-    DateOnly? ValidTo,
-    string? Label
-);
 
 public record FeastDayResult(
     Guid LocationFeastDayId,

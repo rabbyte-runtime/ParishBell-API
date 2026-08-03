@@ -5,7 +5,7 @@ namespace ParishBell.Core.DTOs.User;
 
 public class RegisterDeviceTokenRequestDto
 {
-    // NOTE: The push token (FCM for Android, APNs for iOS). Globally unique — drives the idempotent upsert.
+    // NOTE: The push token, globally unique - it drives the idempotent upsert.
     [Required(ErrorMessage = "PB-58")]
     public string Token { get; set; } = string.Empty;
 

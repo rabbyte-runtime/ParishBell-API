@@ -65,6 +65,20 @@ public static class MessageCodes
     public const string MassReminderSaved = "PB-74";
     public const string MassScheduleNotFound = "PB-75";
     public const string MassReminderRemoved = "PB-77";
+    public const string EventDetailRetrieved = "PB-78";
+    public const string EventNotFound = "PB-79";
+    public const string MassRemindersRetrieved = "PB-80";
+    public const string MassScheduleInvalidRange = "PB-86";
+
+    // NOTE: A push body template, not an API response. {0} is the label, {1} the minutes.
+    public const string MassReminderPushBody = "PB-87";
+
+    // NOTE: The feast day push title, used when the entry has no translation at all.
+    public const string FeastDayPushFallbackTitle = "PB-88";
+    public const string AnnouncementRetrieved = "PB-89";
+    public const string AnnouncementNotFound = "PB-90";
+    public const string UserProfilePhotoUpdated = "PB-81";
+    public const string UserProfilePhotoRemoved = "PB-82";
 
     // NOTE: Other
     public const string RateLimitExceeded = "PB-16";
@@ -84,4 +98,7 @@ public static class MessageCodes
     public const string ValidationAppVersionTooLong = "PB-60";
     public const string ValidationPreferredLanguageInvalid = "PB-64";
     public const string ValidationMinutesBeforeInvalid = "PB-76";
+    public const string ValidationPhotoRequired = "PB-83";
+    public const string ValidationPhotoInvalidType = "PB-84";
+    public const string ValidationPhotoTooLarge = "PB-85";
 }

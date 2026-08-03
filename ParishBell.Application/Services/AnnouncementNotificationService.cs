@@ -25,8 +25,8 @@ public class AnnouncementNotificationService(
         return new AnnouncementPushResult(enqueued, delivered, failed);
     }
 
-    // NOTE: For each recently-published announcement, queue one localized notifications_log row per
-    //       follower who doesn't already have one. Idempotent across polls thanks to the anti-join.
+    // NOTE: Queue one localized log row per follower who does not already have one.
+    // NOTE: Idempotent across polls thanks to the anti-join.
     private async Task<int> EnqueueNewAnnouncementsAsync(CancellationToken ct)
     {
         var now = DateTime.UtcNow;
@@ -74,7 +74,7 @@ public class AnnouncementNotificationService(
             var result = await _pushService.SendToUserAsync(item.UserId, ToNotification(item), ct);
 
             // NOTE: Done when a device received it, or there was nothing to deliver (user has no devices).
-            //       Only a hard failure (tokens errored, none succeeded) is left for the next poll to retry.
+            // NOTE: Only a hard failure is left for the next poll to retry.
             if (result.SuccessCount > 0 || result.FailureCount == 0)
                 delivered.Add(item.NotificationId);
         }
@@ -95,15 +95,15 @@ public class AnnouncementNotificationService(
         };
 
         // NOTE: Lets a tapped push open the church's channel outright. Absent only when the announcement
-        //       was deleted between enqueue and delivery, so the client must treat it as optional.
+        // NOTE: The client must treat it as optional.
         if (item.LocationId is not null)
             data["locationId"] = item.LocationId.Value.ToString();
 
         return new PushNotification { Title = item.Title, Body = item.Body, Data = data };
     }
 
-    // NOTE: Prefer the recipient's language, then English, then any available translation, then a
-    //       generic localized string (announcement titles/captions are optional in the schema).
+    // NOTE: Recipient language, then English, then any translation, then a generic string.
+    // NOTE: Announcement titles and captions are both optional in the schema.
     private static (string Title, string Body) BuildContent(PendingAnnouncement announcement, string languageCode)
     {
         var title = PickText(announcement.Translations, languageCode, t => t.Title);

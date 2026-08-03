@@ -13,7 +13,7 @@ public class MassScheduleServiceTests
     private readonly Guid _userId = Guid.NewGuid();
     private readonly Guid _locationId = Guid.NewGuid();
 
-    // NOTE: August 2026 starts on a Saturday and has 31 days - 5 Saturdays and Sundays, 4 of everything else.
+    // NOTE: August 2026 starts on a Saturday - 5 Saturdays and Sundays, 4 of the rest.
     private const int Month = 8;
     private const int Year = 2026;
 
@@ -23,7 +23,7 @@ public class MassScheduleServiceTests
         _service = new MassScheduleService(_mockRepo.Object);
     }
 
-    private FollowedMassScheduleResult MakeResult(
+    private MassSchedulePatternResult MakeResult(
         int dayOfWeek = 0,
         TimeOnly? massTime = null,
         bool isSpecial = false,
@@ -42,7 +42,7 @@ public class MassScheduleServiceTests
             ValidTo: validTo,
             Reminder: reminder);
 
-    private void SetupRepoReturns(List<FollowedMassScheduleResult> results) =>
+    private void SetupRepoReturns(List<MassSchedulePatternResult> results) =>
         _mockRepo
             .Setup(r => r.GetForFollowedLocationsAsync(
                 _userId, It.IsAny<string>(), It.IsAny<DateOnly>(), It.IsAny<DateOnly>(), It.IsAny<CancellationToken>()))
@@ -117,7 +117,7 @@ public class MassScheduleServiceTests
         Assert.Empty(result.Items);
     }
 
-    // IMPORTANT: TEST 5 - An open-ended window is not an empty one; a missing bound just means the month's own edge
+    // IMPORTANT: TEST 5 - An open-ended window means the month edge, not an empty one
     [Fact]
     public async Task GetFollowedMassSchedules_SpecialMassWithOpenEndedWindow_RunsToTheMonthEdge()
     {
@@ -153,7 +153,7 @@ public class MassScheduleServiceTests
         Assert.Equal(5, result.Items.Count);
     }
 
-    // IMPORTANT: TEST 7 - The reminder rides on every occurrence of its schedule, so the bell shows on each day
+    // IMPORTANT: TEST 7 - The reminder rides on every occurrence of its schedule
     [Fact]
     public async Task GetFollowedMassSchedules_WithReminder_RepeatsItOnEveryOccurrence()
     {
@@ -175,7 +175,7 @@ public class MassScheduleServiceTests
         });
     }
 
-    // IMPORTANT: TEST 8 - A switched-off reminder is still returned; the toggle renders off rather than unset
+    // IMPORTANT: TEST 8 - A switched-off reminder is still returned, rendering off
     [Fact]
     public async Task GetFollowedMassSchedules_WithInactiveReminder_KeepsItButFlagsItOff()
     {
@@ -249,7 +249,7 @@ public class MassScheduleServiceTests
             It.IsAny<CancellationToken>()), Times.Once);
     }
 
-    // IMPORTANT: TEST 12 - Following nothing is an empty month, not an error, and the window is still echoed back
+    // IMPORTANT: TEST 12 - Following nothing is an empty month with the window echoed
     [Fact]
     public async Task GetFollowedMassSchedules_WithNoFollowedLocations_ReturnsEmptyMonth()
     {

@@ -37,7 +37,8 @@ public class LiturgicalCalendarService(ILiturgicalCalendarRepository calendarRep
     }
 
     // NOTE: Resolves the concrete occurrence date within the requested year.
-    // NOTE: Recurring entries are pinned to (year, month, day); a day that doesn't exist in that year (e.g. Feb 29 in a non-leap year) yields null rather than throwing.
+    // NOTE: Recurring entries are pinned to (year, month, day).
+    // NOTE: A day that does not exist that year yields null rather than throwing.
     private static string? ResolveDate(bool isRecurringAnnually, int? month, int? day, DateOnly? specificDate, int year)
     {
         if (isRecurringAnnually)

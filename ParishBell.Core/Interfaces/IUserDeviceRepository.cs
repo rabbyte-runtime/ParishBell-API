@@ -3,7 +3,7 @@ namespace ParishBell.Core.Interfaces;
 public interface IUserDeviceRepository
 {
     // NOTE: Idempotent upsert keyed by the globally-unique device token. Re-points the token to the
-    //       given user when it already exists (reinstall / account switch on the same device).
+    // NOTE: Covers a reinstall or an account switch on the same device.
     Task UpsertAsync(Guid userId, string token, short platform, string? appVersion, CancellationToken ct = default);
 
     // NOTE: Removes the token only when it belongs to the given user. Idempotent — a no-op otherwise.
@@ -15,6 +15,6 @@ public interface IUserDeviceRepository
     // NOTE: All device tokens across the given users on the given platform — used for fan-out pushes.
     Task<IReadOnlyList<string>> GetTokensAsync(IReadOnlyCollection<Guid> userIds, short platform, CancellationToken ct = default);
 
-    // NOTE: Bulk-deletes the given tokens regardless of owner. Used to prune tokens FCM reports as stale.
+    // NOTE: Bulk-deletes tokens regardless of owner, pruning what FCM reports stale.
     Task RemoveByTokensAsync(IReadOnlyCollection<string> tokens, CancellationToken ct = default);
 }

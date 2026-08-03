@@ -1,6 +1,6 @@
 namespace ParishBell.Core.DTOs.User;
 
-// NOTE: Partial update - send only the switches that moved. Omitted (or null) leaves that preference alone.
+// NOTE: Partial update - send only the switches that moved.
 public class UpdateNotificationPreferencesRequestDto
 {
     public bool? Events { get; set; }

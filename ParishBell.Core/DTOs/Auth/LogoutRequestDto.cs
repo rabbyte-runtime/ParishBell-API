@@ -9,6 +9,6 @@ public class LogoutRequestDto
     public string RefreshToken { get; set; } = string.Empty;
 
     // NOTE: Optional — the calling device's push token. When supplied, its registration is pruned so
-    //       the signed-out device stops receiving notifications.
+    // NOTE: The signed-out device then stops receiving notifications.
     public string? DeviceToken { get; set; }
 }

@@ -1,3 +1,5 @@
+using ParishBell.Core.DTOs.Mass;
+
 namespace ParishBell.Core.DTOs.Location;
 
 public class LocationDetailDto
@@ -13,8 +15,22 @@ public class LocationDetailDto
     public string? Email { get; set; }
     public string? Website { get; set; }
     public List<LocationImageDto> Images { get; set; } = [];
-    public List<MassScheduleDto> MassSchedules { get; set; } = [];
+
+    // NOTE: Dated occurrences, identical in shape to /mass/schedule - one concept, one model.
+    // NOTE: Defaults to the coming week so the mass tab needs no date projection.
+    public List<MassOccurrenceDto> MassSchedules { get; set; } = [];
+
+    // NOTE: The window the occurrences were expanded over, echoed back to the client.
+    public string MassFrom { get; set; } = default!;
+    public string MassTo { get; set; } = default!;
     public List<LocationFeastDayDto> FeastDays { get; set; } = [];
+
+    // NOTE: "#RRGGBB" for this church's map pin, carried from its type.
+    public string? PinColorHex { get; set; }
+
+    // NOTE: Whether the caller follows this church, so Join/Leave needs no second call.
+    // IMPORTANT: Public endpoint - anonymous callers get false, which is not "unknown".
+    public bool IsFollowing { get; set; }
 }
 
 public class LocationImageDto
@@ -23,20 +39,6 @@ public class LocationImageDto
     public string ImageUrl { get; set; } = default!;
     public bool IsPrimary { get; set; }
     public int SortOrder { get; set; }
-}
-
-public class MassScheduleDto
-{
-    public Guid ScheduleId { get; set; }
-    // NOTE: 0=Sunday, 1=Monday ... 6=Saturday
-    public int DayOfWeek { get; set; }
-    // NOTE: "HH:mm" 24-hour format
-    public string MassTime { get; set; } = default!;
-    public bool IsSpecial { get; set; }
-    // NOTE: "yyyy-MM-dd" — non-null only when IsSpecial is true
-    public string? ValidFrom { get; set; }
-    public string? ValidTo { get; set; }
-    public string? Label { get; set; }
 }
 
 public class LocationFeastDayDto

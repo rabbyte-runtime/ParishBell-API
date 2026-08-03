@@ -8,8 +8,8 @@ public class AnnouncementPushSettings
     // NOTE: How often the outbox job polls for new/undelivered announcement notifications.
     public int PollIntervalSeconds { get; set; } = 60;
 
-    // IMPORTANT: Only announcements created within this window are eligible. Prevents a backlog blast
-    //            on first deploy or after downtime, and keeps "new announcement" pushes timely.
+    // IMPORTANT: Only announcements created within this window are eligible.
+    // NOTE: Prevents a backlog blast on first deploy and keeps pushes timely.
     public int LookbackMinutes { get; set; } = 60;
 
     // NOTE: Max notifications delivered per poll iteration.

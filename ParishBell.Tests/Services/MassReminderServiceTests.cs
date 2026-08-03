@@ -35,6 +35,34 @@ public class MassReminderServiceTests
     private SetMassReminderRequestDto Request(int minutesBefore = 30) =>
         new() { ScheduleId = _scheduleId, MinutesBefore = minutesBefore };
 
+    private UserMassReminderResult MakeListResult(
+        bool isActive = true,
+        bool isFollowing = true,
+        int dayOfWeek = 0,
+        TimeOnly? massTime = null,
+        bool isSpecial = false,
+        DateOnly? validFrom = null,
+        DateOnly? validTo = null) =>
+        new(
+            ReminderId: Guid.NewGuid(),
+            MinutesBefore: 30,
+            IsActive: isActive,
+            ScheduleId: _scheduleId,
+            LocationId: Guid.NewGuid(),
+            LocationName: "St. Anthony's Shrine",
+            DayOfWeek: dayOfWeek,
+            MassTime: massTime ?? new TimeOnly(6, 30),
+            Label: "Sinhala Mass",
+            IsSpecial: isSpecial,
+            ValidFrom: validFrom,
+            ValidTo: validTo,
+            IsFollowing: isFollowing);
+
+    private void SetupListReturns(List<UserMassReminderResult> results) =>
+        _mockRepo
+            .Setup(r => r.GetForUserAsync(_userId, It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(results);
+
     // IMPORTANT: TEST 1 - A reminder on a live mass is saved and handed back for the bell to rebind
     [Fact]
     public async Task SetReminder_OnRemindableSchedule_ReturnsSavedReminder()
@@ -89,7 +117,7 @@ public class MassReminderServiceTests
         Assert.Equal(["check", "upsert"], callOrder);
     }
 
-    // IMPORTANT: TEST 4 - Re-saving reports the reminder switched back on, which is how the UI re-enables one
+    // IMPORTANT: TEST 4 - Re-saving reports it switched back on, which is how the UI re-enables
     [Fact]
     public async Task SetReminder_OnPreviouslyDisabledReminder_ComesBackActive()
     {
@@ -107,7 +135,111 @@ public class MassReminderServiceTests
         Assert.True(result.IsActive);
     }
 
-    // IMPORTANT: TEST 5 - Cancelling a reminder the caller owns switches it off
+    // IMPORTANT: TEST 5 - The agenda row maps the reminder and the mass behind it, formatted for display
+    [Fact]
+    public async Task GetReminders_MapsReminderAndItsMass()
+    {
+        // NOTE: Arrange
+        SetupListReturns([MakeListResult(dayOfWeek: 3, massTime: new TimeOnly(17, 5))]);
+
+        // NOTE: Act
+        var result = await _service.GetRemindersAsync(_userId, "en");
+
+        // NOTE: Assert
+        var dto = Assert.Single(result.Items);
+        Assert.Equal(_scheduleId, dto.ScheduleId);
+        Assert.Equal("St. Anthony's Shrine", dto.LocationName);
+        Assert.Equal(3, dto.DayOfWeek);
+        Assert.Equal("17:05", dto.MassTime);
+        Assert.Equal("Sinhala Mass", dto.Label);
+        Assert.Equal(30, dto.MinutesBefore);
+        Assert.True(dto.IsActive);
+        Assert.True(dto.IsFollowing);
+        Assert.Null(dto.ValidFrom);
+        Assert.Null(dto.ValidTo);
+    }
+
+    // IMPORTANT: TEST 6 - A cancelled reminder is listed rather than hidden, so it can be switched back on
+    [Fact]
+    public async Task GetReminders_IncludesCancelledOnesFlaggedOff()
+    {
+        // NOTE: Arrange
+        SetupListReturns([MakeListResult(isActive: false)]);
+
+        // NOTE: Act
+        var result = await _service.GetRemindersAsync(_userId, "en");
+
+        // NOTE: Assert
+        var dto = Assert.Single(result.Items);
+        Assert.False(dto.IsActive);
+        Assert.Equal(_scheduleId, dto.ScheduleId);
+    }
+
+    // IMPORTANT: TEST 7 - A reminder at a church the user walked away from is surfaced, flagged, not dropped
+    [Fact]
+    public async Task GetReminders_FlagsRemindersAtUnfollowedChurches()
+    {
+        // NOTE: Arrange
+        SetupListReturns([MakeListResult(isFollowing: false)]);
+
+        // NOTE: Act
+        var result = await _service.GetRemindersAsync(_userId, "en");
+
+        // NOTE: Assert — it still fires, so hiding it would strand the user with a push they cannot find
+        var dto = Assert.Single(result.Items);
+        Assert.False(dto.IsFollowing);
+        Assert.True(dto.IsActive);
+    }
+
+    // IMPORTANT: TEST 8 - A seasonal mass exposes its window, since this list has no month to clip against
+    [Fact]
+    public async Task GetReminders_SpecialMass_ExposesValidityWindow()
+    {
+        // NOTE: Arrange
+        SetupListReturns([MakeListResult(
+            isSpecial: true,
+            validFrom: new DateOnly(2026, 12, 24),
+            validTo: new DateOnly(2026, 12, 25))]);
+
+        // NOTE: Act
+        var result = await _service.GetRemindersAsync(_userId, "en");
+
+        // NOTE: Assert
+        var dto = Assert.Single(result.Items);
+        Assert.True(dto.IsSpecial);
+        Assert.Equal("2026-12-24", dto.ValidFrom);
+        Assert.Equal("2026-12-25", dto.ValidTo);
+    }
+
+    // IMPORTANT: TEST 9 - Having set nothing is an empty list, not an error
+    [Fact]
+    public async Task GetReminders_WithNone_ReturnsEmptyList()
+    {
+        // NOTE: Arrange
+        SetupListReturns([]);
+
+        // NOTE: Act
+        var result = await _service.GetRemindersAsync(_userId, "en");
+
+        // NOTE: Assert
+        Assert.Empty(result.Items);
+    }
+
+    // IMPORTANT: TEST 10 - The requested language reaches the repository, which resolves the fallback
+    [Fact]
+    public async Task GetReminders_PassesLanguageAndUserToRepository()
+    {
+        // NOTE: Arrange
+        SetupListReturns([]);
+
+        // NOTE: Act
+        await _service.GetRemindersAsync(_userId, "ta");
+
+        // NOTE: Assert
+        _mockRepo.Verify(r => r.GetForUserAsync(_userId, "ta", It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    // IMPORTANT: TEST 11 - Cancelling a reminder the caller owns switches it off
     [Fact]
     public async Task RemoveReminder_WhenOwned_Succeeds()
     {
@@ -124,7 +256,7 @@ public class MassReminderServiceTests
         _mockRepo.Verify(r => r.DisableAsync(_userId, reminderId, It.IsAny<CancellationToken>()), Times.Once);
     }
 
-    // IMPORTANT: TEST 6 - Someone else's reminder id is a 404, revealing nothing about its existence
+    // IMPORTANT: TEST 12 - Someone else's reminder id is a 404, revealing nothing about its existence
     [Fact]
     public async Task RemoveReminder_WhenNotOwnedOrMissing_ThrowsNotFound()
     {
@@ -138,7 +270,7 @@ public class MassReminderServiceTests
         Assert.Equal(MessageCodes.GeneralNotFound, exception.MessageCode);
     }
 
-    // IMPORTANT: TEST 7 - The reminder is always written for the caller, never for whoever the body might name
+    // IMPORTANT: TEST 13 - The reminder is always written for the caller
     [Fact]
     public async Task SetReminder_WritesForTheCallingUser()
     {

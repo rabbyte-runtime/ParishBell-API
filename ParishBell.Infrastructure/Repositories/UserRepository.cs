@@ -22,6 +22,7 @@ public class UserRepository(ParishBellDbContext dbContext) : IUserRepository
                 u.FullName,
                 u.Email,
                 u.ProfileImageUrl,
+                u.ProfilePhotoBlob,
                 u.AuthProvider,
                 u.IsActive,
                 u.CreatedAt,
@@ -44,6 +45,21 @@ public class UserRepository(ParishBellDbContext dbContext) : IUserRepository
             .AnyAsync(u => u.Email == email.ToLower() && u.UserId != userId, ct);
     }
 
+    public async Task UpdateProfilePhotoBlobAsync(Guid userId, string? blobName, CancellationToken ct = default)
+    {
+        // NOTE: Null is a meaningful value here - it clears the upload rather than meaning "leave unchanged".
+        await _dbContext.AppUsers
+            .Where(u => u.UserId == userId)
+            .ExecuteUpdateAsync(s => s.SetProperty(u => u.ProfilePhotoBlob, blobName), ct);
+    }
+
+    public async Task UpdateProviderPhotoUrlAsync(Guid userId, string? imageUrl, CancellationToken ct = default)
+    {
+        await _dbContext.AppUsers
+            .Where(u => u.UserId == userId)
+            .ExecuteUpdateAsync(s => s.SetProperty(u => u.ProfileImageUrl, imageUrl), ct);
+    }
+
     public async Task UpdateProfileAsync(Guid userId, string? fullName, string? email, Guid? preferredLanguage, CancellationToken ct = default)
     {
         var user = await _dbContext.AppUsers.FirstOrDefaultAsync(u => u.UserId == userId, ct);
@@ -60,7 +76,8 @@ public class UserRepository(ParishBellDbContext dbContext) : IUserRepository
         }
         catch (DbUpdateException)
         {
-            // NOTE: The caller already checked the address was free. A failure here means a concurrent request claimed it first - uq_app_users_email is the only constraint this write can break.
+            // NOTE: The caller already checked the address was free, so a race claimed it first.
+            // NOTE: uq_app_users_email is the only constraint this write can break.
             throw new ConflictException(MessageCodes.AuthEmailAlreadyExists);
         }
     }

@@ -29,7 +29,7 @@ public class EventRepository(ParishBellDbContext dbContext) : IEventRepository
         var englishId = langs.FirstOrDefault(l => l.LanguageCode == DefaultLanguageCode)?.LanguageId;
         var requestedId = langs.FirstOrDefault(l => l.LanguageCode == languageCode)?.LanguageId ?? englishId;
 
-        // NOTE: Published active events — idx_ev_published covers LocationId + IsPublished + IsActive + EventDate
+        // NOTE: Published active events - idx_ev_published covers the whole predicate.
         var eventsQuery = _dbContext.Events
             .AsNoTracking()
             .Where(e => e.LocationId == locationId && e.IsPublished && e.IsActive);
@@ -38,7 +38,7 @@ public class EventRepository(ParishBellDbContext dbContext) : IEventRepository
         if (toDate.HasValue) eventsQuery = eventsQuery.Where(e => e.EventDate <= toDate.Value);
 
         // NOTE: Ascending by date so upcoming events come first naturally.
-        // ThenBy EventId keeps pagination pages stable and non-overlapping.
+        // NOTE: ThenBy EventId keeps pagination pages stable and non-overlapping.
         IQueryable<Core.Entities.Event> orderedQuery = eventsQuery
             .OrderBy(e => e.EventDate)
             .ThenBy(e => e.EventId);
@@ -90,6 +90,66 @@ public class EventRepository(ParishBellDbContext dbContext) : IEventRepository
         return result;
     }
 
+    public async Task<EventDetailResult?> GetEventByIdAsync(Guid eventId, string languageCode, CancellationToken ct = default)
+    {
+        // NOTE: Resolve the requested language + English to their UUIDs
+        var langs = await _dbContext.Languages
+            .AsNoTracking()
+            .Where(l => l.LanguageCode == languageCode || l.LanguageCode == DefaultLanguageCode)
+            .Select(l => new { l.LanguageId, l.LanguageCode })
+            .ToListAsync(ct);
+
+        var englishId = langs.FirstOrDefault(l => l.LanguageCode == DefaultLanguageCode)?.LanguageId;
+        var requestedId = langs.FirstOrDefault(l => l.LanguageCode == languageCode)?.LanguageId ?? englishId;
+
+        // IMPORTANT: The same visibility rules as the lists.
+        // NOTE: A draft or hidden event must not become reachable just by holding its id.
+        var ev = await _dbContext.Events
+            .AsNoTracking()
+            .Where(e => e.EventId == eventId && e.IsPublished && e.IsActive
+                     && e.Location.IsApproved && e.Location.IsActive && !e.Location.IsRejected)
+            .Select(e => new { e.EventId, e.LocationId, e.EventDate, e.StartTime, e.EndTime })
+            .FirstOrDefaultAsync(ct);
+
+        if (ev is null)
+            return null;
+
+        var translations = await _dbContext.EventTranslations
+            .AsNoTracking()
+            .Where(t => t.EventId == eventId && (t.LanguageId == requestedId || t.LanguageId == englishId))
+            .Select(t => new { t.LanguageId, t.Title, t.Description })
+            .ToListAsync(ct);
+
+        // NOTE: The hosting church's name for the header - requested language with English fallback
+        var locationNames = await _dbContext.LocationTranslations
+            .AsNoTracking()
+            .Where(t => t.LocationId == ev.LocationId && (t.LanguageId == requestedId || t.LanguageId == englishId))
+            .Select(t => new { t.LanguageId, t.Name })
+            .ToListAsync(ct);
+
+        // NOTE: Images ordered for display — idx_ei_event covers EventId + SortOrder
+        var images = await _dbContext.EventImages
+            .AsNoTracking()
+            .Where(i => i.EventId == eventId)
+            .OrderBy(i => i.SortOrder)
+            .Select(i => new EventImageResult(i.EventImageId, i.ImageUrl, i.SortOrder))
+            .ToListAsync(ct);
+
+        var title = translations.FirstOrDefault(t => t.LanguageId == requestedId)?.Title
+                 ?? translations.FirstOrDefault(t => t.LanguageId == englishId)?.Title
+                 ?? string.Empty;
+
+        var description = translations.FirstOrDefault(t => t.LanguageId == requestedId)?.Description
+                       ?? translations.FirstOrDefault(t => t.LanguageId == englishId)?.Description;
+
+        var locationName = locationNames.FirstOrDefault(t => t.LanguageId == requestedId)?.Name
+                        ?? locationNames.FirstOrDefault(t => t.LanguageId == englishId)?.Name
+                        ?? string.Empty;
+
+        return new EventDetailResult(
+            ev.EventId, ev.LocationId, locationName, ev.EventDate, ev.StartTime, ev.EndTime, title, description, images);
+    }
+
     public async Task<List<FollowedEventResult>> GetFollowedEventsAsync(
         Guid userId,
         string languageCode,
@@ -118,7 +178,7 @@ public class EventRepository(ParishBellDbContext dbContext) : IEventRepository
             return [];
 
         // NOTE: Published active events across all followed locations within the month window.
-        // NOTE:  Ordered by date, then start time (all-day events first), then EventId for a stable order.
+        // NOTE: Ordered by date, then start time, then EventId for a stable order.
         var events = await _dbContext.Events
             .AsNoTracking()
             .Where(e => followedLocationIds.Contains(e.LocationId) && e.IsPublished && e.IsActive

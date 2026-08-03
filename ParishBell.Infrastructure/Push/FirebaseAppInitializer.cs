@@ -27,12 +27,12 @@ public sealed class FirebaseAppInitializer
             return;
         }
 
-        // NOTE: FirebaseApp.Create throws if called twice, so guard on the default instance. The initializer
-        //       is a singleton, but the guard also covers reloads in some hosting scenarios.
+        // NOTE: FirebaseApp.Create throws if called twice, so guard on the default instance.
+        // NOTE: The initializer is a singleton, but this also covers hosting reloads.
         if (FirebaseApp.DefaultInstance is null)
         {
-            // NOTE: A Firebase key is always a service-account credential. CredentialFactory is the current
-            //       (non-obsolete) entry point; ToGoogleCredential adapts it to what AppOptions expects.
+            // NOTE: A Firebase key is always a service-account credential.
+            // NOTE: CredentialFactory is the non-obsolete entry point; ToGoogleCredential adapts it.
             var credential = (!string.IsNullOrWhiteSpace(settings.CredentialsJson)
                     ? CredentialFactory.FromJson<ServiceAccountCredential>(settings.CredentialsJson)
                     : CredentialFactory.FromFile<ServiceAccountCredential>(settings.CredentialsPath))
